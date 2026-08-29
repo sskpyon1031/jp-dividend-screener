@@ -41,11 +41,23 @@
       <label>業種
         <select id="sector"><option value="">すべて</option></select>
       </label>
+      <label>テクニカルで絞り込み
+        <select id="tech">
+          <option value="">指定なし</option>
+          <option value="ma_up">25日線が上向き</option>
+          <option value="turn">上向きに転じて10日以内(初動)</option>
+          <option value="above">株価が25日線より上</option>
+          <option value="gc_new">ゴールデンクロスが新しい(20日以内)</option>
+          <option value="gc_near">ゴールデンクロス間近</option>
+        </select>
+      </label>
       <label>並び替え
         <select id="sort">
           <option value="mc">時価総額が大きい順</option>
           <option value="dy">配当利回りが高い順</option>
-          <option value="ma">26日線の傾きが大きい順</option>
+          <option value="ma">25日線の傾きが大きい順</option>
+          <option value="turn">上向きに転じて日が浅い順</option>
+          <option value="gc">ゴールデンクロスが新しい順</option>
           <option value="chg_desc">前日比が大きい順</option>
           <option value="chg_asc">前日比が小さい順</option>
           <option value="code">証券コード順</option>
@@ -54,7 +66,6 @@
       <label>銘柄名・コードで検索
         <input type="search" id="q" placeholder="例: 三菱 / 8058" autocomplete="off">
       </label>
-      <label class="row"><input type="checkbox" id="maUp"> 26日線が上向きの銘柄のみ</label>
       <label class="row"><input type="checkbox" id="theme"> ダークテーマ</label>
     </div>
   </details>

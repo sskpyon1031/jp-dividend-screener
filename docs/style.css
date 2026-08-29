@@ -4,6 +4,7 @@
   --bg:#eef1f4; --card:#ffffff; --text:#141a20; --muted:#63707c;
   --line:#e3e8ec; --accent:#0e7c66; --up:#c0392b; --down:#1f8a4c;
   --chip:#eef2f5; --chip-text:#48555f;
+  --trend:#0e8a5f; --gc:#b8860b;
   --shadow:0 1px 2px rgba(20,30,40,.10), 0 1px 8px rgba(20,30,40,.04);
   --radius:14px;
 }
@@ -11,6 +12,7 @@
   --bg:#0b0f14; --card:#141b22; --text:#e8edf1; --muted:#8b98a4;
   --line:#232d37; --accent:#3dd3b0; --up:#ff6b6b; --down:#3ecf7a;
   --chip:#1e2831; --chip-text:#9fb0bd;
+  --trend:#2ea06e; --gc:#e0b050;
   --shadow:0 1px 2px rgba(0,0,0,.4);
 }
 
@@ -103,13 +105,16 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .metrics dd.up { color: var(--up); }
 .metrics dd.down { color: var(--down); }
 
-/* 26日移動平均の向き */
-.ma-line {
-  margin-top: 8px; font-size: .82rem; font-weight: 600;
-  color: var(--muted); font-variant-numeric: tabular-nums;
+/* テクニカル1行(25日線 / 株価乖離 / 75日線・GC) */
+.tech {
+  margin-top: 8px; font-size: .8rem; font-weight: 600;
+  font-variant-numeric: tabular-nums; line-height: 1.7;
+  display: flex; flex-wrap: wrap; align-items: center;
 }
-.ma-line.up { color: #2ea06e; }
-.ma-line.down { color: var(--muted); }
+.tech .t-up { color: var(--trend); }
+.tech .t-muted { color: var(--muted); }
+.tech .t-gc { color: var(--gc); font-weight: 700; }
+.tech .t-sep { color: var(--line); margin: 0 7px; }
 
 .empty { text-align: center; color: var(--muted); padding: 32px 12px; }
 

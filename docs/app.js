@@ -58,7 +58,7 @@ function initControls() {
   $("#sort").value = f.sort ?? "mc";
   $("#sector").value = sectors.includes(f.sector) ? f.sector : "";
   $("#q").value = f.q ?? "";
-  $("#maUp").checked = !!f.maUp;
+  $("#tech").value = f.tech ?? "";
 
   applyTheme(f.theme);
   $("#theme").checked = document.documentElement.dataset.theme === "dark";
@@ -67,9 +67,8 @@ function initControls() {
 /* イベントバインドはデータ取得の成否と無関係に一度だけ行う
    (取得失敗時でも再読み込みボタンを効かせるため) */
 function bindControls() {
-  ["dy", "mc", "sort", "sector"].forEach(id => $("#" + id).addEventListener("input", onFilter));
+  ["dy", "mc", "sort", "sector", "tech"].forEach(id => $("#" + id).addEventListener("input", onFilter));
   $("#q").addEventListener("input", onFilter);
-  $("#maUp").addEventListener("change", onFilter);
   $("#theme").addEventListener("change", () => {
     applyTheme($("#theme").checked ? "dark" : "light");
     persist();
@@ -102,7 +101,7 @@ function persist() {
       sort: $("#sort").value,
       sector: $("#sector").value,
       q: $("#q").value.trim(),
-      maUp: $("#maUp").checked,
+      tech: $("#tech").value,
       theme: state.f.theme,
     };
   }
@@ -120,20 +119,22 @@ function render() {
   const sec = $("#sector").value;
   const q = $("#q").value.trim().toLowerCase();
   const sort = $("#sort").value;
-  const maUpOnly = $("#maUp").checked;
+  const tech = $("#tech").value;
 
   const rows = d.items.filter(i =>
     (i.dividend_yield ?? 0) >= minDy &&
     i.market_cap >= minMc &&
     (!sec || i.sector === sec) &&
-    (!maUpOnly || i.ma26_rising === true) &&
+    techPass(i, tech) &&
     (!q || i.name.toLowerCase().includes(q) || String(i.code).includes(q))
   );
 
   const cmps = {
     mc: (a, b) => b.market_cap - a.market_cap,
     dy: (a, b) => (b.dividend_yield ?? 0) - (a.dividend_yield ?? 0),
-    ma: (a, b) => (b.ma26_slope_pct ?? -1e9) - (a.ma26_slope_pct ?? -1e9),
+    ma: (a, b) => (b.ma25_slope_pct ?? -1e9) - (a.ma25_slope_pct ?? -1e9),
+    turn: (a, b) => turnRank(a) - turnRank(b),
+    gc: (a, b) => (a.days_since_golden_cross ?? 1e9) - (b.days_since_golden_cross ?? 1e9),
     chg_desc: (a, b) => (b.change_pct ?? -1e9) - (a.change_pct ?? -1e9),
     chg_asc: (a, b) => (a.change_pct ?? 1e9) - (b.change_pct ?? 1e9),
     code: (a, b) => String(a.code).localeCompare(String(b.code)),
@@ -159,6 +160,51 @@ function render() {
   $("#empty").hidden = rows.length > 0;
 }
 
+/* テクニカル絞り込みの判定 */
+function techPass(i, tech) {
+  switch (tech) {
+    case "ma_up":  return i.ma25_rising === true;
+    case "turn":   return i.ma25_rising === true && i.ma25_rising_days >= 1 && i.ma25_rising_days <= 10;
+    case "above":  return i.above_ma25 === true;
+    case "gc_new": return i.days_since_golden_cross != null && i.days_since_golden_cross <= 20;
+    case "gc_near": return i.gc_approaching === true;
+    default:       return true;
+  }
+}
+/* 「上向きに転じて日が浅い順」用: 上向きでないものは最後へ */
+function turnRank(i) {
+  return (i.ma25_rising === true && i.ma25_rising_days >= 1) ? i.ma25_rising_days : 1e9;
+}
+
+/* カード上部のテクニカル1行(25日線の向き / 株価乖離 / 75日線・GC) */
+function techLines(i) {
+  if (i.ma25_rising == null && i.above_ma25 == null) return "";
+  const parts = [];
+
+  if (i.ma25_rising === true) {
+    const d = i.ma25_rising_days >= 1 ? ` ${i.ma25_rising_days}日目` : "";
+    parts.push(`<span class="t-up">25日線 ↗ 上向き${d}</span>`);
+  } else if (i.ma25_rising === false) {
+    parts.push(`<span class="t-muted">25日線 ↘ 下向き</span>`);
+  }
+
+  if (i.price_vs_ma25_pct != null) {
+    parts.push(`<span class="${i.above_ma25 ? "t-up" : "t-muted"}">株価${slope(i.price_vs_ma25_pct)}</span>`);
+  }
+
+  if (i.days_since_golden_cross != null && i.days_since_golden_cross <= 25) {
+    parts.push(`<span class="t-gc">GC ${i.days_since_golden_cross}日目</span>`);
+  } else if (i.gc_approaching === true) {
+    parts.push(`<span class="t-gc">GC間近${slope(i.gc_gap_pct)}</span>`);
+  } else if (i.ma25_above_ma75 === true) {
+    parts.push(`<span class="t-up">25&gt;75日線</span>`);
+  } else if (i.ma25_above_ma75 === false) {
+    parts.push(`<span class="t-muted">25&lt;75日線</span>`);
+  }
+
+  return `<div class="tech">${parts.join('<span class="t-sep">・</span>')}</div>`;
+}
+
 function card(i) {
   const chg = i.change_pct;
   const chgCls = chg == null ? "" : chg > 0 ? "up" : chg < 0 ? "down" : "";
@@ -172,9 +218,7 @@ function card(i) {
       <span class="name">${esc(i.name)}</span>
       <span class="chip">${esc(i.sector)}</span>
     </div>
-    <div class="ma-line ${i.ma26_rising === true ? "up" : i.ma26_rising === false ? "down" : ""}">
-      26日移動平均 ${i.ma26_rising === true ? "↗ 上向き" : i.ma26_rising === false ? "↘ 下向き" : "—"}${slope(i.ma26_slope_pct)}
-    </div>
+    ${techLines(i)}
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
     <dl class="metrics">
       <div><dt>株価</dt><dd>${price(i.price)}</dd></div>

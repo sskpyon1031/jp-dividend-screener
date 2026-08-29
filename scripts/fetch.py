@@ -38,8 +38,11 @@ JPX_XLS_URL = (
 TOPIX500_SCALES = {"TOPIX Core30", "TOPIX Large70", "TOPIX Mid400"}
 UA = {"User-Agent": "Mozilla/5.0 (compatible; jp-dividend-screener/1.0)"}
 
-MA_WINDOW = 26            # 移動平均の期間(営業日)
-MA_SLOPE_LOOKBACK = 5     # 何営業日前と比べて「上向き」を判定するか
+MA_SHORT = 25            # 短期移動平均(日本株の標準)
+MA_LONG = 75             # 中期移動平均(ゴールデンクロス判定用)
+MA_SLOPE_LOOKBACK = 5    # 傾きを測る営業日数
+TREND_SCAN_MAX = 60      # 「〜日目」を数える上限(超えたら None)
+GC_NEAR_PCT = 0.03       # 25日線が75日線の 3% 以内まで接近したら「GC間近」候補
 
 
 def num(x):
@@ -116,18 +119,39 @@ def fi_get(fast_info, *keys):
     return None
 
 
-def load_ma26(symbols: list[str]) -> dict[str, dict]:
-    """全銘柄の日足終値をまとめて取得し、26日移動平均とその傾きを計算する。
+def _trailing_run(mask) -> int:
+    """末尾から連続して True が続く長さ。"""
+    n = 0
+    for v in reversed(list(mask)):
+        if bool(v):
+            n += 1
+        else:
+            break
+    return n
 
-    返り値: {symbol: {"ma26": float, "ma26_rising": bool, "ma26_slope_pct": float}}
-    取れなかった銘柄はキーごと省略(フロント側で「—」表示)。補助情報なので
-    ここで失敗しても全体は止めない。
+
+def load_ma(symbols: list[str]) -> dict[str, dict]:
+    """日足終値をまとめて取得し、25日/75日移動平均まわりの指標を計算する。
+
+    各銘柄に付ける情報:
+      ma25 / ma75                : 移動平均の現在値
+      ma25_slope_pct             : 直近 MA_SLOPE_LOOKBACK 営業日での 25日線の傾き(%)
+      ma25_rising                : 25日線が上向きか
+      ma25_rising_days           : 上向きが連続して何営業日続いているか(初動なら小さい)
+      price_vs_ma25_pct          : 株価が25日線から何%上(+)/下(-)か(乖離率)
+      above_ma25                 : 株価が25日線より上か
+      ma25_above_ma75            : 25日線 > 75日線(ゴールデンクロス状態)か
+      days_since_golden_cross    : GC成立から何営業日か(未クロス/古すぎは None)
+      gc_gap_pct                 : (25日線 / 75日線 - 1) * 100
+      gc_approaching             : 未クロスだが 25日線が上向き & 差が縮小中 & 3%以内
+
+    補助情報なので、取れなくても全体は止めない。
     """
     out: dict[str, dict] = {}
     try:
         hist = yf.download(
             symbols,
-            period="6mo",
+            period="1y",
             interval="1d",
             group_by="ticker",
             auto_adjust=True,
@@ -135,7 +159,7 @@ def load_ma26(symbols: list[str]) -> dict[str, dict]:
             progress=False,
         )
     except Exception as e:  # noqa: BLE001
-        print(f"[warn] 26日移動平均の取得に失敗しました: {e}", file=sys.stderr)
+        print(f"[warn] 移動平均データの取得に失敗しました: {e}", file=sys.stderr)
         return out
     if hist is None or hist.empty:
         return out
@@ -144,26 +168,69 @@ def load_ma26(symbols: list[str]) -> dict[str, dict]:
     available = set(hist.columns.get_level_values(0)) if multi else set(symbols)
 
     for sym in symbols:
+        if multi and sym not in available:
+            continue
         try:
             close = (hist[sym]["Close"] if multi else hist["Close"]).dropna()
         except Exception:  # noqa: BLE001
             continue
-        if multi and sym not in available:
+        if len(close) < MA_LONG + MA_SLOPE_LOOKBACK + 1:
             continue
-        if len(close) < MA_WINDOW + MA_SLOPE_LOOKBACK:
+
+        ma_s_full = close.rolling(MA_SHORT).mean()
+        ma_l_full = close.rolling(MA_LONG).mean()
+        s = ma_s_full.dropna()
+        if len(s) < MA_SLOPE_LOOKBACK + 2:
             continue
-        ma = close.rolling(MA_WINDOW).mean().dropna()
-        if len(ma) <= MA_SLOPE_LOOKBACK:
+
+        price = float(close.iloc[-1])
+        cur_s = float(s.iloc[-1])
+        past_s = float(s.iloc[-1 - MA_SLOPE_LOOKBACK])
+        if cur_s <= 0 or past_s <= 0:
             continue
-        cur = float(ma.iloc[-1])
-        past = float(ma.iloc[-1 - MA_SLOPE_LOOKBACK])
-        if past <= 0:
-            continue
-        out[sym] = {
-            "ma26": round(cur, 1),
-            "ma26_rising": bool(cur > past),
-            "ma26_slope_pct": round((cur / past - 1) * 100, 2),
+        slope_pct = (cur_s / past_s - 1) * 100
+        rising = slope_pct > 0
+        rising_days = min(_trailing_run(s.diff() > 0), TREND_SCAN_MAX)
+
+        rec = {
+            "ma25": round(cur_s, 1),
+            "ma25_slope_pct": round(slope_pct, 2),
+            "ma25_rising": bool(rising),
+            "ma25_rising_days": rising_days if rising else 0,
+            "price_vs_ma25_pct": round((price / cur_s - 1) * 100, 2),
+            "above_ma25": bool(price > cur_s),
         }
+
+        both = ma_s_full.notna() & ma_l_full.notna()
+        if both.any():
+            pair = pd.DataFrame({"s": ma_s_full[both], "l": ma_l_full[both]})
+            cur_l = float(pair["l"].iloc[-1])
+            if cur_l > 0:
+                above = pair["s"] > pair["l"]
+                gap_now = cur_s / cur_l - 1
+                rec["ma75"] = round(cur_l, 1)
+                rec["ma25_above_ma75"] = bool(above.iloc[-1])
+                rec["gc_gap_pct"] = round(gap_now * 100, 2)
+
+                if above.iloc[-1]:
+                    run = _trailing_run(above)
+                    rec["days_since_golden_cross"] = run if run <= TREND_SCAN_MAX else None
+                    rec["gc_approaching"] = False
+                else:
+                    rec["days_since_golden_cross"] = None
+                    past_gap = None
+                    if len(pair) > MA_SLOPE_LOOKBACK:
+                        p_s = float(pair["s"].iloc[-1 - MA_SLOPE_LOOKBACK])
+                        p_l = float(pair["l"].iloc[-1 - MA_SLOPE_LOOKBACK])
+                        if p_l > 0:
+                            past_gap = p_s / p_l - 1
+                    rec["gc_approaching"] = bool(
+                        rising
+                        and -GC_NEAR_PCT <= gap_now < 0
+                        and past_gap is not None
+                        and gap_now > past_gap
+                    )
+        out[sym] = rec
     return out
 
 
@@ -267,9 +334,9 @@ def main() -> int:
         )
         return 1
 
-    # 26日移動平均(補助情報)。まとめて1回のダウンロードで取得。
-    ma_map = load_ma26(list(meta))
-    print(f"26日移動平均: {len(ma_map)}/{len(meta)} 銘柄で算出")
+    # 移動平均(補助情報)。日足をまとめて1回ダウンロードして計算。
+    ma_map = load_ma(list(meta))
+    print(f"移動平均: {len(ma_map)}/{len(meta)} 銘柄で算出")
     for r in results:
         r.update(ma_map.get(r["symbol"], {}))
 
@@ -294,7 +361,8 @@ def main() -> int:
             "min_dividend_yield_pct": min_dy,
             "min_market_cap_yen": min_mc,
             "universe": CONFIG.get("universe"),
-            "ma_window": MA_WINDOW,
+            "ma_short": MA_SHORT,
+            "ma_long": MA_LONG,
             "ma_slope_lookback": MA_SLOPE_LOOKBACK,
         },
         "universe_count": len(meta),
