@@ -177,7 +177,7 @@ function turnRank(i) {
   return (i.ma25_rising === true && i.ma25_rising_days >= 1) ? i.ma25_rising_days : 1e9;
 }
 
-/* カード上部のテクニカル1行(25日線の向き / 株価乖離 / 75日線・GC) */
+/* カード上部のテクニカル1行(25日線の向き / 株価乖離) */
 function techLines(i) {
   if (i.ma25_rising == null && i.above_ma25 == null) return "";
   const parts = [];
@@ -193,17 +193,57 @@ function techLines(i) {
     parts.push(`<span class="${i.above_ma25 ? "t-up" : "t-muted"}">株価${slope(i.price_vs_ma25_pct)}</span>`);
   }
 
-  if (i.days_since_golden_cross != null && i.days_since_golden_cross <= GC_NEW_DAYS) {
-    parts.push(`<span class="t-gc">GC ${i.days_since_golden_cross}日目</span>`);
-  } else if (i.gc_approaching === true) {
-    parts.push(`<span class="t-gc">GC間近${slope(i.gc_gap_pct)}</span>`);
-  } else if (i.ma25_above_ma75 === true) {
-    parts.push(`<span class="t-up">25&gt;75日線</span>`);
-  } else if (i.ma25_above_ma75 === false) {
-    parts.push(`<span class="t-muted">25&lt;75日線</span>`);
-  }
+  return parts.length ? `<div class="tech">${parts.join("")}</div>` : "";
+}
 
-  return `<div class="tech">${parts.join("")}</div>`;
+/* ゴールデンクロスの状態を「ことば」で表す1行 */
+function gcLine(i) {
+  const g = i.days_since_golden_cross;
+  if (g != null && g <= GC_NEW_DAYS) {
+    return `<div class="gc-line fresh">ゴールデンクロス <b>${g}営業日前</b>・強気転換のサイン</div>`;
+  }
+  if (i.gc_approaching === true) {
+    const gap = i.gc_gap_pct != null ? Math.abs(i.gc_gap_pct).toFixed(1) : "";
+    return `<div class="gc-line near">ゴールデンクロスまで <b>あと ${gap}%</b>・接近中</div>`;
+  }
+  if (i.ma25_above_ma75 === true) {
+    return `<div class="gc-line up">上昇配列(25日線 &gt; 75日線)</div>`;
+  }
+  if (i.ma25_above_ma75 === false) {
+    return `<div class="gc-line down">クロス前(25日線 &lt; 75日線)</div>`;
+  }
+  return "";
+}
+
+/* 25日線(緑)・75日線(灰)の直近推移と、交差点(●)を描くミニチャート */
+function sparkline(i) {
+  const a = i.ma25_hist, b = i.ma75_hist;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length < 2 || a.length !== b.length) return "";
+  const n = a.length, W = 300, H = 44, pad = 4;
+  const lo = Math.min(...a, ...b), hi = Math.max(...a, ...b);
+  const span = (hi - lo) || 1;
+  const X = k => pad + (W - 2 * pad) * k / (n - 1);
+  const Y = v => pad + (H - 2 * pad) * (1 - (v - lo) / span);
+  const d = arr => arr.map((v, k) => `${k ? "L" : "M"}${X(k).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
+
+  let mx = null, my = null, kind = "";
+  for (let k = 1; k < n; k++) {
+    const d0 = a[k - 1] - b[k - 1], d1 = a[k] - b[k];
+    if (d0 === 0 || Math.sign(d0) === Math.sign(d1)) continue;
+    const t = d0 / (d0 - d1);
+    mx = X(k - 1 + t);
+    my = Y(a[k - 1] + t * (a[k] - a[k - 1]));
+    kind = d1 > 0 ? "gc" : "dc";
+  }
+  // 交差点マーカーは HTML 要素で重ねる(SVG を横伸ばししても真円を保つため)
+  const dot = mx == null ? ""
+    : `<i class="spark-dot ${kind}" style="left:${(mx / W * 100).toFixed(1)}%;top:${(my / H * 100).toFixed(1)}%"></i>`;
+
+  return `<div class="spark-wrap">
+    <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <path d="${d(b)}" class="spark-l75"/><path d="${d(a)}" class="spark-l25"/>
+    </svg>${dot}
+  </div>`;
 }
 
 function card(i) {
@@ -220,6 +260,8 @@ function card(i) {
       <span class="chip">${esc(i.sector)}</span>
     </div>
     ${techLines(i)}
+    ${sparkline(i)}
+    ${gcLine(i)}
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
     <dl class="metrics">
       <div><dt>株価</dt><dd>${price(i.price)}</dd></div>

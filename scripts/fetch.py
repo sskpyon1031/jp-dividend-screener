@@ -44,6 +44,7 @@ MA_SLOPE_LOOKBACK = 5    # 傾きを測る営業日数
 TREND_SCAN_MAX = 60      # 「〜日目」を数える上限(超えたら None)
 GC_NEAR_PCT = 0.03       # 25日線が75日線の 3% 以内まで接近したら「GC間近」候補
 GC_CONFIRM_DAYS = 5      # GC成立前に「25日線 < 75日線」が続くべき営業日数(ヒゲ除去)
+MA_SPARK_POINTS = 45     # カードのミニチャートに描く直近の移動平均の点数
 
 
 def num(x):
@@ -248,6 +249,9 @@ def load_ma(items: list[dict]) -> dict[str, dict]:
                 rec["ma75"] = round(cur_l, 1)
                 rec["ma25_above_ma75"] = above_now
                 rec["gc_gap_pct"] = round(gap_now * 100, 2)
+                # カードのミニチャート用: 25日線/75日線の直近推移(同じ日付で揃える)
+                rec["ma25_hist"] = [round(float(v), 1) for v in s_v[-MA_SPARK_POINTS:]]
+                rec["ma75_hist"] = [round(float(v), 1) for v in l_v[-MA_SPARK_POINTS:]]
 
                 if above_now:
                     above_list = [bool(a > b) for a, b in zip(s_v, l_v)]

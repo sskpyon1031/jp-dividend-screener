@@ -44,6 +44,15 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .summary strong { font-size: 1.15rem; color: var(--accent); }
 .summary .sub { display: block; font-size: .78rem; color: var(--muted); margin-top: 2px; }
 
+.legend {
+  font-size: .72rem; color: var(--muted); line-height: 1.6;
+  padding: 8px 10px; margin: 4px 0 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+}
+.legend .lg-25 { color: var(--trend); font-weight: 700; }
+.legend .lg-75 { font-weight: 700; }
+.legend .lg-x { color: var(--gc); font-weight: 700; }
+
 .filters {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); margin: 8px 0; box-shadow: var(--shadow);
@@ -115,6 +124,40 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .tech .t-up { color: var(--trend); }
 .tech .t-muted { color: var(--muted); }
 .tech .t-gc { color: var(--gc); font-weight: 700; }
+
+/* 25日線・75日線のミニチャート */
+.spark-wrap { position: relative; margin: 8px 0 4px; }
+.spark {
+  width: 100%; height: 48px; display: block; overflow: visible;
+}
+.spark-l25 { fill: none; stroke: var(--trend); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.spark-l75 {
+  fill: none; stroke: var(--muted); stroke-width: 1.5;
+  opacity: .6; vector-effect: non-scaling-stroke;
+}
+.spark-dot {
+  position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--card);
+}
+.spark-dot.gc { background: var(--gc); }
+.spark-dot.dc { background: var(--muted); }
+
+/* ゴールデンクロスの状態(ことば) */
+.gc-line {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .82rem; font-weight: 600; margin: 2px 0 2px;
+}
+.gc-line::before {
+  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+}
+.gc-line b { font-weight: 800; }
+.gc-line.fresh { color: var(--trend); }
+.gc-line.fresh::before { background: var(--trend); }
+.gc-line.near { color: var(--gc); }
+.gc-line.near::before { background: var(--gc); }
+.gc-line.up, .gc-line.down { color: var(--muted); }
+.gc-line.up::before { background: var(--muted); }
+.gc-line.down::before { background: transparent; border: 1px solid var(--muted); }
 
 .empty { text-align: center; color: var(--muted); padding: 32px 12px; }
 
