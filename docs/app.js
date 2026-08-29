@@ -157,6 +157,12 @@ function render() {
     note.hidden = true;
   }
 
+  // ミニチャートを持つ銘柄が1つも無ければ凡例を隠す
+  const legend = $(".legend");
+  if (legend) {
+    legend.hidden = !d.items.some(x => Array.isArray(x.ma25_hist) && x.ma25_hist.length >= 2);
+  }
+
   $("#list").innerHTML = rows.map(card).join("");
   $("#empty").hidden = rows.length > 0;
 }
@@ -221,19 +227,28 @@ function sparkline(i) {
   if (!Array.isArray(a) || !Array.isArray(b) || a.length < 2 || a.length !== b.length) return "";
   const n = a.length, W = 300, H = 44, pad = 4;
   const lo = Math.min(...a, ...b), hi = Math.max(...a, ...b);
-  const span = (hi - lo) || 1;
+  // Y軸レンジには下限(価格水準の約1%)を設け、ほぼ平行な2線を誇張しない。
+  // 余白は上下に均等配分してレンジ中央に描く。
+  const rawSpan = hi - lo;
+  const span = Math.max(rawSpan, ((hi + lo) / 2) * 0.01) || 1;
+  const base = lo - (span - rawSpan) / 2;
   const X = k => pad + (W - 2 * pad) * k / (n - 1);
-  const Y = v => pad + (H - 2 * pad) * (1 - (v - lo) / span);
+  const Y = v => pad + (H - 2 * pad) * (1 - (v - base) / span);
   const d = arr => arr.map((v, k) => `${k ? "L" : "M"}${X(k).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
 
+  // 「25日線 >= 75日線」の状態が反転した箇所を交差点とみなす(丸め値の同値タッチにも対応)
   let mx = null, my = null, kind = "";
+  let wasAbove = a[0] >= b[0];
   for (let k = 1; k < n; k++) {
+    const nowAbove = a[k] >= b[k];
+    if (nowAbove === wasAbove) continue;
     const d0 = a[k - 1] - b[k - 1], d1 = a[k] - b[k];
-    if (d0 === 0 || Math.sign(d0) === Math.sign(d1)) continue;
-    const t = d0 / (d0 - d1);
+    const denom = d0 - d1;
+    const t = Math.min(Math.max(denom !== 0 ? d0 / denom : 0.5, 0), 1);
     mx = X(k - 1 + t);
     my = Y(a[k - 1] + t * (a[k] - a[k - 1]));
-    kind = d1 > 0 ? "gc" : "dc";
+    kind = nowAbove ? "gc" : "dc";
+    wasAbove = nowAbove;
   }
   // 交差点マーカーは HTML 要素で重ねる(SVG を横伸ばししても真円を保つため)
   const dot = mx == null ? ""

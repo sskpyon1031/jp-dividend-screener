@@ -114,7 +114,7 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .metrics dd.up { color: var(--up); }
 .metrics dd.down { color: var(--down); }
 
-/* テクニカル1行(25日線 / 株価乖離 / 75日線・GC) */
+/* テクニカル1行(25日線の向き / 株価乖離) */
 .tech {
   margin-top: 8px; font-size: .8rem; font-weight: 600;
   font-variant-numeric: tabular-nums; line-height: 1.6;
@@ -127,9 +127,7 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 
 /* 25日線・75日線のミニチャート */
 .spark-wrap { position: relative; margin: 8px 0 4px; }
-.spark {
-  width: 100%; height: 48px; display: block; overflow: visible;
-}
+.spark { width: 100%; height: 48px; display: block; }
 .spark-l25 { fill: none; stroke: var(--trend); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .spark-l75 {
   fill: none; stroke: var(--muted); stroke-width: 1.5;

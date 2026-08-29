@@ -416,12 +416,10 @@ def main() -> int:
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     HIST_DIR.mkdir(parents=True, exist_ok=True)
-    (DATA_DIR / "latest.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
-    )
-    (HIST_DIR / f"{now:%Y-%m-%d}.json").write_text(
-        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
-    )
+    # latest / history とも無整形(機械読み取り専用。ma25_hist 等の配列で肥大化しないように)
+    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    (DATA_DIR / "latest.json").write_text(compact, encoding="utf-8")
+    (HIST_DIR / f"{now:%Y-%m-%d}.json").write_text(compact, encoding="utf-8")
     dates = sorted(p.stem for p in HIST_DIR.glob("20*.json"))
     (DATA_DIR / "history.json").write_text(
         json.dumps({"dates": dates}, ensure_ascii=False), encoding="utf-8"
