@@ -1,0 +1,3 @@
+# リポジトリ内のテキストは LF に正規化(GitHub Actions の bash が \r で壊れないように)
+* text=auto eol=lf
+*.png binary

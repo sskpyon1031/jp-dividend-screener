@@ -1,0 +1,8 @@
+{
+  "universe": "topix500",
+  "min_dividend_yield": 4.0,
+  "min_market_cap_yen": 300000000000,
+  "max_results": 100,
+  "workers": 8,
+  "min_success_ratio": 0.5
+}

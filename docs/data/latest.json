@@ -1,0 +1,20 @@
+{
+ "sample": true,
+ "generated_at": "2026-08-29T17:00:00+09:00",
+ "criteria": {
+  "min_dividend_yield_pct": 4.0,
+  "min_market_cap_yen": 300000000000,
+  "universe": "topix500"
+ },
+ "universe_count": 500,
+ "fetched_count": 497,
+ "match_count": 6,
+ "items": [
+  {"code": "8306", "name": "三菱ＵＦＪフィナンシャル・グループ", "sector": "銀行業", "scale": "TOPIX Core30", "symbol": "8306.T", "price": 1780.0, "prev_close": 1765.0, "change_pct": 0.85, "market_cap": 21500000000000, "dividend_yield": 4.05, "dividend_rate": 72.0, "dividend_basis": "予想"},
+  {"code": "8058", "name": "三菱商事", "sector": "卸売業", "scale": "TOPIX Core30", "symbol": "8058.T", "price": 2650.0, "prev_close": 2678.0, "change_pct": -1.05, "market_cap": 10800000000000, "dividend_yield": 4.15, "dividend_rate": 110.0, "dividend_basis": "予想"},
+  {"code": "5401", "name": "日本製鉄", "sector": "鉄鋼", "scale": "TOPIX Large70", "symbol": "5401.T", "price": 3050.0, "prev_close": 3010.0, "change_pct": 1.33, "market_cap": 2900000000000, "dividend_yield": 5.25, "dividend_rate": 160.0, "dividend_basis": "予想"},
+  {"code": "2914", "name": "ＪＴ", "sector": "食料品", "scale": "TOPIX Large70", "symbol": "2914.T", "price": 4200.0, "prev_close": 4185.0, "change_pct": 0.36, "market_cap": 8400000000000, "dividend_yield": 4.90, "dividend_rate": 206.0, "dividend_basis": "予想"},
+  {"code": "9434", "name": "ソフトバンク", "sector": "情報・通信業", "scale": "TOPIX Large70", "symbol": "9434.T", "price": 205.0, "prev_close": 206.5, "change_pct": -0.73, "market_cap": 9700000000000, "dividend_yield": 4.30, "dividend_rate": 8.8, "dividend_basis": "予想"},
+  {"code": "4502", "name": "武田薬品工業", "sector": "医薬品", "scale": "TOPIX Core30", "symbol": "4502.T", "price": 4150.0, "prev_close": 4120.0, "change_pct": 0.73, "market_cap": 6600000000000, "dividend_yield": 4.65, "dividend_rate": 196.0, "dividend_basis": "実績"}
+ ]
+}

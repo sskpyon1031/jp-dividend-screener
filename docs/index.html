@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="高配当スクリーナー">
+<title>日本株 高配当スクリーナー</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="app-bar">
+  <h1>高配当スクリーナー<span>日本株</span></h1>
+  <button id="reload" class="icon-btn" title="再読み込み" aria-label="再読み込み">&#x27F3;</button>
+</header>
+
+<main>
+  <section id="summary" class="summary" aria-live="polite">読み込み中…</section>
+
+  <details id="filters" class="filters">
+    <summary>絞り込み・並び替え</summary>
+    <div class="filters-body">
+      <label>表示する利回りの下限 <output id="dyOut"></output>
+        <input type="range" id="dy" min="3" max="10" step="0.1">
+      </label>
+      <label>時価総額の下限
+        <select id="mc">
+          <option value="0">すべて</option>
+          <option value="100000000000">1,000億円以上</option>
+          <option value="500000000000">5,000億円以上</option>
+          <option value="1000000000000">1兆円以上</option>
+          <option value="3000000000000">3兆円以上</option>
+        </select>
+      </label>
+      <label>業種
+        <select id="sector"><option value="">すべて</option></select>
+      </label>
+      <label>並び替え
+        <select id="sort">
+          <option value="mc">時価総額が大きい順</option>
+          <option value="dy">配当利回りが高い順</option>
+          <option value="chg_desc">前日比が大きい順</option>
+          <option value="chg_asc">前日比が小さい順</option>
+          <option value="code">証券コード順</option>
+        </select>
+      </label>
+      <label>銘柄名・コードで検索
+        <input type="search" id="q" placeholder="例: 三菱 / 8058" autocomplete="off">
+      </label>
+      <label class="row"><input type="checkbox" id="theme"> ダークテーマ</label>
+    </div>
+  </details>
+
+  <p id="notice" class="notice" hidden></p>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="empty" hidden>条件に合う銘柄がありません。絞り込みを緩めてください。</p>
+</main>
+
+<footer class="disclaimer">
+  <p>本サイトは公開情報を機械的に集計・表示するツールです。特定銘柄の売買を推奨するものではなく、投資助言でもありません。</p>
+  <p>データ提供元の仕様変更・遅延・欠損・誤りにより、数値が実際と異なる場合があります。投資の判断はご自身の責任で、必ず一次情報をご確認ください。</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
