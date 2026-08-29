@@ -6,7 +6,7 @@
  *
  * VERSION を上げると旧キャッシュを破棄する。フロントを大きく変えて
  * 即時反映したいときは手動で上げてもよいが、通常は放置で自己回復する。 */
-const VERSION = "v4";
+const VERSION = "v5";
 const SHELL = "shell-" + VERSION;
 const ASSETS = [
   "./", "./index.html", "./style.css", "./app.js",

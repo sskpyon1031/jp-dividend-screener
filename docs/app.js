@@ -1,6 +1,7 @@
 "use strict";
 
 const $ = (sel, el = document) => el.querySelector(sel);
+const GC_NEW_DAYS = 20;   // 「ゴールデンクロスが新しい」とみなす営業日数(表示・絞り込み共通)
 const state = { raw: null, f: {} };
 try { state.f = JSON.parse(localStorage.getItem("filters") || "{}"); } catch { state.f = {}; }
 
@@ -166,7 +167,7 @@ function techPass(i, tech) {
     case "ma_up":  return i.ma25_rising === true;
     case "turn":   return i.ma25_rising === true && i.ma25_rising_days >= 1 && i.ma25_rising_days <= 10;
     case "above":  return i.above_ma25 === true;
-    case "gc_new": return i.days_since_golden_cross != null && i.days_since_golden_cross <= 20;
+    case "gc_new": return i.days_since_golden_cross != null && i.days_since_golden_cross <= GC_NEW_DAYS;
     case "gc_near": return i.gc_approaching === true;
     default:       return true;
   }
@@ -192,7 +193,7 @@ function techLines(i) {
     parts.push(`<span class="${i.above_ma25 ? "t-up" : "t-muted"}">株価${slope(i.price_vs_ma25_pct)}</span>`);
   }
 
-  if (i.days_since_golden_cross != null && i.days_since_golden_cross <= 25) {
+  if (i.days_since_golden_cross != null && i.days_since_golden_cross <= GC_NEW_DAYS) {
     parts.push(`<span class="t-gc">GC ${i.days_since_golden_cross}日目</span>`);
   } else if (i.gc_approaching === true) {
     parts.push(`<span class="t-gc">GC間近${slope(i.gc_gap_pct)}</span>`);
@@ -202,7 +203,7 @@ function techLines(i) {
     parts.push(`<span class="t-muted">25&lt;75日線</span>`);
   }
 
-  return `<div class="tech">${parts.join('<span class="t-sep">・</span>')}</div>`;
+  return `<div class="tech">${parts.join("")}</div>`;
 }
 
 function card(i) {

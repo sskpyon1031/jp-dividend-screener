@@ -108,13 +108,13 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 /* テクニカル1行(25日線 / 株価乖離 / 75日線・GC) */
 .tech {
   margin-top: 8px; font-size: .8rem; font-weight: 600;
-  font-variant-numeric: tabular-nums; line-height: 1.7;
+  font-variant-numeric: tabular-nums; line-height: 1.6;
   display: flex; flex-wrap: wrap; align-items: center;
+  column-gap: 16px; row-gap: 2px;
 }
 .tech .t-up { color: var(--trend); }
 .tech .t-muted { color: var(--muted); }
 .tech .t-gc { color: var(--gc); font-weight: 700; }
-.tech .t-sep { color: var(--line); margin: 0 7px; }
 
 .empty { text-align: center; color: var(--muted); padding: 32px 12px; }
 

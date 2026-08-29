@@ -43,6 +43,7 @@ MA_LONG = 75             # 中期移動平均(ゴールデンクロス判定用)
 MA_SLOPE_LOOKBACK = 5    # 傾きを測る営業日数
 TREND_SCAN_MAX = 60      # 「〜日目」を数える上限(超えたら None)
 GC_NEAR_PCT = 0.03       # 25日線が75日線の 3% 以内まで接近したら「GC間近」候補
+GC_CONFIRM_DAYS = 5      # GC成立前に「25日線 < 75日線」が続くべき営業日数(ヒゲ除去)
 
 
 def num(x):
@@ -130,8 +131,37 @@ def _trailing_run(mask) -> int:
     return n
 
 
-def load_ma(symbols: list[str]) -> dict[str, dict]:
-    """日足終値をまとめて取得し、25日/75日移動平均まわりの指標を計算する。
+def _days_since_cross(above: list[bool], confirm: int, cap: int):
+    """末尾が「25日線 > 75日線」(GC状態)のとき、直近の *確定した* 下→上クロスからの
+    営業日数を返す。クロス直前に confirm 日以上の「下」が無ければヒゲとみなし、
+    その手前のクロスまで遡る。窓内に確定クロスが見つからなければ None(=古い)。"""
+    n = len(above)
+    if n == 0 or not above[-1]:
+        return None
+    i = n - 1
+    since = 0
+    while i >= 0 and above[i]:      # 現在の「上」連続区間
+        since += 1
+        i -= 1
+    while i >= 0:
+        gap = 0                     # 直前の「下」連続区間
+        while i >= 0 and not above[i]:
+            gap += 1
+            i -= 1
+        if gap >= confirm:
+            return since if since <= cap else None
+        since += gap                # ヒゲ。手前の「上」区間も足して継続
+        while i >= 0 and above[i]:
+            since += 1
+            i -= 1
+    return None                     # 窓の先頭まで確定クロス無し
+
+
+def load_ma(items: list[dict]) -> dict[str, dict]:
+    """表示対象の銘柄について日足を取得し、25日/75日移動平均まわりの指標を計算する。
+
+    引数 items は "symbol" と "price" を持つレコードのリスト(絞り込み後の picked)。
+    乖離率・株価との位置は、カード表示と揃えるため items の "price" を使う。
 
     各銘柄に付ける情報:
       ma25 / ma75                : 移動平均の現在値
@@ -141,13 +171,18 @@ def load_ma(symbols: list[str]) -> dict[str, dict]:
       price_vs_ma25_pct          : 株価が25日線から何%上(+)/下(-)か(乖離率)
       above_ma25                 : 株価が25日線より上か
       ma25_above_ma75            : 25日線 > 75日線(ゴールデンクロス状態)か
-      days_since_golden_cross    : GC成立から何営業日か(未クロス/古すぎは None)
+      days_since_golden_cross    : 確定GCから何営業日か(未クロス/古すぎは None)
       gc_gap_pct                 : (25日線 / 75日線 - 1) * 100
       gc_approaching             : 未クロスだが 25日線が上向き & 差が縮小中 & 3%以内
 
     補助情報なので、取れなくても全体は止めない。
     """
     out: dict[str, dict] = {}
+    if not items:
+        return out
+    symbols = [it["symbol"] for it in items]
+    price_by_sym = {it["symbol"]: it.get("price") for it in items}
+
     try:
         hist = yf.download(
             symbols,
@@ -183,7 +218,8 @@ def load_ma(symbols: list[str]) -> dict[str, dict]:
         if len(s) < MA_SLOPE_LOOKBACK + 2:
             continue
 
-        price = float(close.iloc[-1])
+        px = price_by_sym.get(sym)
+        price = float(px) if px else float(close.iloc[-1])
         cur_s = float(s.iloc[-1])
         past_s = float(s.iloc[-1 - MA_SLOPE_LOOKBACK])
         if cur_s <= 0 or past_s <= 0:
@@ -203,25 +239,28 @@ def load_ma(symbols: list[str]) -> dict[str, dict]:
 
         both = ma_s_full.notna() & ma_l_full.notna()
         if both.any():
-            pair = pd.DataFrame({"s": ma_s_full[both], "l": ma_l_full[both]})
-            cur_l = float(pair["l"].iloc[-1])
+            s_v = ma_s_full[both].to_numpy()
+            l_v = ma_l_full[both].to_numpy()
+            cur_l = float(l_v[-1])
             if cur_l > 0:
-                above = pair["s"] > pair["l"]
                 gap_now = cur_s / cur_l - 1
+                above_now = bool(s_v[-1] > l_v[-1])
                 rec["ma75"] = round(cur_l, 1)
-                rec["ma25_above_ma75"] = bool(above.iloc[-1])
+                rec["ma25_above_ma75"] = above_now
                 rec["gc_gap_pct"] = round(gap_now * 100, 2)
 
-                if above.iloc[-1]:
-                    run = _trailing_run(above)
-                    rec["days_since_golden_cross"] = run if run <= TREND_SCAN_MAX else None
+                if above_now:
+                    above_list = [bool(a > b) for a, b in zip(s_v, l_v)]
+                    rec["days_since_golden_cross"] = _days_since_cross(
+                        above_list, GC_CONFIRM_DAYS, TREND_SCAN_MAX
+                    )
                     rec["gc_approaching"] = False
                 else:
                     rec["days_since_golden_cross"] = None
                     past_gap = None
-                    if len(pair) > MA_SLOPE_LOOKBACK:
-                        p_s = float(pair["s"].iloc[-1 - MA_SLOPE_LOOKBACK])
-                        p_l = float(pair["l"].iloc[-1 - MA_SLOPE_LOOKBACK])
+                    if len(l_v) > MA_SLOPE_LOOKBACK:
+                        p_s = float(s_v[-1 - MA_SLOPE_LOOKBACK])
+                        p_l = float(l_v[-1 - MA_SLOPE_LOOKBACK])
                         if p_l > 0:
                             past_gap = p_s / p_l - 1
                     rec["gc_approaching"] = bool(
@@ -334,12 +373,6 @@ def main() -> int:
         )
         return 1
 
-    # 移動平均(補助情報)。日足をまとめて1回ダウンロードして計算。
-    ma_map = load_ma(list(meta))
-    print(f"移動平均: {len(ma_map)}/{len(meta)} 銘柄で算出")
-    for r in results:
-        r.update(ma_map.get(r["symbol"], {}))
-
     min_dy = float(CONFIG["min_dividend_yield"])
     min_mc = int(CONFIG["min_market_cap_yen"])
     picked = [
@@ -353,6 +386,12 @@ def main() -> int:
     limit = int(CONFIG.get("max_results") or 0)
     if limit:
         picked = picked[:limit]
+
+    # 移動平均(補助情報)は、最終的に表示する銘柄ぶんだけ日足を取得する。
+    ma_map = load_ma(picked)
+    print(f"移動平均: {len(ma_map)}/{len(picked)} 銘柄で算出")
+    for r in picked:
+        r.update(ma_map.get(r["symbol"], {}))
 
     now = dt.datetime.now(dt.timezone(dt.timedelta(hours=9)))
     payload = {
