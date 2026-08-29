@@ -38,6 +38,9 @@ JPX_XLS_URL = (
 TOPIX500_SCALES = {"TOPIX Core30", "TOPIX Large70", "TOPIX Mid400"}
 UA = {"User-Agent": "Mozilla/5.0 (compatible; jp-dividend-screener/1.0)"}
 
+MA_WINDOW = 26            # 移動平均の期間(営業日)
+MA_SLOPE_LOOKBACK = 5     # 何営業日前と比べて「上向き」を判定するか
+
 
 def num(x):
     """数値化できなければ None。NaN / inf も None にする。"""
@@ -111,6 +114,57 @@ def fi_get(fast_info, *keys):
         if v is not None:
             return v
     return None
+
+
+def load_ma26(symbols: list[str]) -> dict[str, dict]:
+    """全銘柄の日足終値をまとめて取得し、26日移動平均とその傾きを計算する。
+
+    返り値: {symbol: {"ma26": float, "ma26_rising": bool, "ma26_slope_pct": float}}
+    取れなかった銘柄はキーごと省略(フロント側で「—」表示)。補助情報なので
+    ここで失敗しても全体は止めない。
+    """
+    out: dict[str, dict] = {}
+    try:
+        hist = yf.download(
+            symbols,
+            period="6mo",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            threads=True,
+            progress=False,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 26日移動平均の取得に失敗しました: {e}", file=sys.stderr)
+        return out
+    if hist is None or hist.empty:
+        return out
+
+    multi = isinstance(hist.columns, pd.MultiIndex)
+    available = set(hist.columns.get_level_values(0)) if multi else set(symbols)
+
+    for sym in symbols:
+        try:
+            close = (hist[sym]["Close"] if multi else hist["Close"]).dropna()
+        except Exception:  # noqa: BLE001
+            continue
+        if multi and sym not in available:
+            continue
+        if len(close) < MA_WINDOW + MA_SLOPE_LOOKBACK:
+            continue
+        ma = close.rolling(MA_WINDOW).mean().dropna()
+        if len(ma) <= MA_SLOPE_LOOKBACK:
+            continue
+        cur = float(ma.iloc[-1])
+        past = float(ma.iloc[-1 - MA_SLOPE_LOOKBACK])
+        if past <= 0:
+            continue
+        out[sym] = {
+            "ma26": round(cur, 1),
+            "ma26_rising": bool(cur > past),
+            "ma26_slope_pct": round((cur / past - 1) * 100, 2),
+        }
+    return out
 
 
 def fetch_one(symbol: str) -> dict | None:
@@ -213,6 +267,12 @@ def main() -> int:
         )
         return 1
 
+    # 26日移動平均(補助情報)。まとめて1回のダウンロードで取得。
+    ma_map = load_ma26(list(meta))
+    print(f"26日移動平均: {len(ma_map)}/{len(meta)} 銘柄で算出")
+    for r in results:
+        r.update(ma_map.get(r["symbol"], {}))
+
     min_dy = float(CONFIG["min_dividend_yield"])
     min_mc = int(CONFIG["min_market_cap_yen"])
     picked = [
@@ -234,6 +294,8 @@ def main() -> int:
             "min_dividend_yield_pct": min_dy,
             "min_market_cap_yen": min_mc,
             "universe": CONFIG.get("universe"),
+            "ma_window": MA_WINDOW,
+            "ma_slope_lookback": MA_SLOPE_LOOKBACK,
         },
         "universe_count": len(meta),
         "fetched_count": len(results),

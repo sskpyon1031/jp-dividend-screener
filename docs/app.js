@@ -14,6 +14,7 @@ const yen = n => {
 const price = n => n == null ? "—"
   : "¥" + n.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct = n => n == null ? "—" : (n > 0 ? "+" : "") + n.toFixed(2) + "%";
+const slope = n => n == null ? "" : " " + (n > 0 ? "+" : "") + n.toFixed(1) + "%";
 const fmtDate = iso => {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
@@ -57,6 +58,7 @@ function initControls() {
   $("#sort").value = f.sort ?? "mc";
   $("#sector").value = sectors.includes(f.sector) ? f.sector : "";
   $("#q").value = f.q ?? "";
+  $("#maUp").checked = !!f.maUp;
 
   applyTheme(f.theme);
   $("#theme").checked = document.documentElement.dataset.theme === "dark";
@@ -67,6 +69,7 @@ function initControls() {
 function bindControls() {
   ["dy", "mc", "sort", "sector"].forEach(id => $("#" + id).addEventListener("input", onFilter));
   $("#q").addEventListener("input", onFilter);
+  $("#maUp").addEventListener("change", onFilter);
   $("#theme").addEventListener("change", () => {
     applyTheme($("#theme").checked ? "dark" : "light");
     persist();
@@ -99,6 +102,7 @@ function persist() {
       sort: $("#sort").value,
       sector: $("#sector").value,
       q: $("#q").value.trim(),
+      maUp: $("#maUp").checked,
       theme: state.f.theme,
     };
   }
@@ -116,17 +120,20 @@ function render() {
   const sec = $("#sector").value;
   const q = $("#q").value.trim().toLowerCase();
   const sort = $("#sort").value;
+  const maUpOnly = $("#maUp").checked;
 
   const rows = d.items.filter(i =>
     (i.dividend_yield ?? 0) >= minDy &&
     i.market_cap >= minMc &&
     (!sec || i.sector === sec) &&
+    (!maUpOnly || i.ma26_rising === true) &&
     (!q || i.name.toLowerCase().includes(q) || String(i.code).includes(q))
   );
 
   const cmps = {
     mc: (a, b) => b.market_cap - a.market_cap,
     dy: (a, b) => (b.dividend_yield ?? 0) - (a.dividend_yield ?? 0),
+    ma: (a, b) => (b.ma26_slope_pct ?? -1e9) - (a.ma26_slope_pct ?? -1e9),
     chg_desc: (a, b) => (b.change_pct ?? -1e9) - (a.change_pct ?? -1e9),
     chg_asc: (a, b) => (a.change_pct ?? 1e9) - (b.change_pct ?? 1e9),
     code: (a, b) => String(a.code).localeCompare(String(b.code)),
@@ -164,6 +171,9 @@ function card(i) {
       <span class="code">${esc(i.code)}</span>
       <span class="name">${esc(i.name)}</span>
       <span class="chip">${esc(i.sector)}</span>
+    </div>
+    <div class="ma-line ${i.ma26_rising === true ? "up" : i.ma26_rising === false ? "down" : ""}">
+      26日移動平均 ${i.ma26_rising === true ? "↗ 上向き" : i.ma26_rising === false ? "↘ 下向き" : "—"}${slope(i.ma26_slope_pct)}
     </div>
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
     <dl class="metrics">

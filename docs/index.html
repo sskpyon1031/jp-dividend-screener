@@ -45,6 +45,7 @@
         <select id="sort">
           <option value="mc">時価総額が大きい順</option>
           <option value="dy">配当利回りが高い順</option>
+          <option value="ma">26日線の傾きが大きい順</option>
           <option value="chg_desc">前日比が大きい順</option>
           <option value="chg_asc">前日比が小さい順</option>
           <option value="code">証券コード順</option>
@@ -53,6 +54,7 @@
       <label>銘柄名・コードで検索
         <input type="search" id="q" placeholder="例: 三菱 / 8058" autocomplete="off">
       </label>
+      <label class="row"><input type="checkbox" id="maUp"> 26日線が上向きの銘柄のみ</label>
       <label class="row"><input type="checkbox" id="theme"> ダークテーマ</label>
     </div>
   </details>

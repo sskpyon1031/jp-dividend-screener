@@ -103,6 +103,14 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .metrics dd.up { color: var(--up); }
 .metrics dd.down { color: var(--down); }
 
+/* 26日移動平均の向き */
+.ma-line {
+  margin-top: 8px; font-size: .82rem; font-weight: 600;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ma-line.up { color: #2ea06e; }
+.ma-line.down { color: var(--muted); }
+
 .empty { text-align: center; color: var(--muted); padding: 32px 12px; }
 
 .disclaimer {
