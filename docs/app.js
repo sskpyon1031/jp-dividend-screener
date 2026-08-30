@@ -263,8 +263,9 @@ function sparkline(i) {
 
 /* ミニチャート + 株探の個別チャートへのリンク(チャート全体がタップ可能) */
 function chartBlock(i) {
+  if (!i.code) return sparkline(i);
   const url = "https://kabutan.jp/stock/chart?code=" + encodeURIComponent(i.code);
-  return `<a class="chart-link" href="${url}" target="_blank" rel="noopener noreferrer">
+  return `<a class="chart-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">
     ${sparkline(i)}
     <span class="chart-cta">株探でチャートを見る<span aria-hidden="true"> ↗</span></span>
   </a>`;

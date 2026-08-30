@@ -140,7 +140,7 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .spark-dot.gc { background: var(--gc); }
 .spark-dot.dc { background: var(--muted); }
 
-.chart-link { display: block; text-decoration: none; margin-top: 8px; }
+.chart-link { display: block; text-decoration: none; color: inherit; margin-top: 8px; }
 .chart-link .spark-wrap { transition: opacity .1s; }
 .chart-link:active .spark-wrap { opacity: .55; }
 .chart-cta {
