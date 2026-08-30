@@ -261,6 +261,15 @@ function sparkline(i) {
   </div>`;
 }
 
+/* ミニチャート + 株探の個別チャートへのリンク(チャート全体がタップ可能) */
+function chartBlock(i) {
+  const url = "https://kabutan.jp/stock/chart?code=" + encodeURIComponent(i.code);
+  return `<a class="chart-link" href="${url}" target="_blank" rel="noopener noreferrer">
+    ${sparkline(i)}
+    <span class="chart-cta">株探でチャートを見る<span aria-hidden="true"> ↗</span></span>
+  </a>`;
+}
+
 function card(i) {
   const chg = i.change_pct;
   const chgCls = chg == null ? "" : chg > 0 ? "up" : chg < 0 ? "down" : "";
@@ -275,7 +284,7 @@ function card(i) {
       <span class="chip">${esc(i.sector)}</span>
     </div>
     ${techLines(i)}
-    ${sparkline(i)}
+    ${chartBlock(i)}
     ${gcLine(i)}
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
     <dl class="metrics">
