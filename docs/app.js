@@ -92,8 +92,8 @@ function applyPreset(name) {
   if (!state.raw) return;
   const set = (id, v) => { const el = $("#" + id); if (el) el.value = v; };
   if (name === "dip" || name === "new") {
-    set("tech", name === "new" ? "pullback_new" : "pullback");
-    set("sort", "pullback");
+    set("tech", name === "new" ? "pullback_new" : "pullback_value");
+    set("sort", "range_pos");   // 52週レンジ下位順=安値寄りから見る
     set("payout", "100");
     // 個別銘柄を絞る条件はいったん外し、候補を一望できる状態に
     set("sector", "");
@@ -223,6 +223,8 @@ function techPass(i, tech) {
     case "gc_new": return i.days_since_golden_cross != null && i.days_since_golden_cross <= GC_NEW_DAYS;
     case "gc_near": return i.gc_approaching === true;
     case "pullback":     return i.pullback_signal === true;
+    case "pullback_value": return i.pullback_signal === true &&
+                                  i.range_pos_pct != null && i.range_pos_pct < 75;
     case "pullback_new": return i.pullback_new === true;
     case "rsi_os":       return i.rsi14 != null && i.rsi14 <= 30;
     case "near_low":      return i.range_pos_pct != null && i.range_pos_pct <= 25;
