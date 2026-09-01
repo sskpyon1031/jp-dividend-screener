@@ -79,6 +79,34 @@ function bindControls() {
     persist();
   });
   $("#reload").addEventListener("click", load);
+  document.querySelectorAll(".presets button").forEach(
+    b => b.addEventListener("click", () => applyPreset(b.dataset.preset))
+  );
+}
+
+/* 「操作手順」をワンクリックで反映するプリセット。
+   dip = 押し目シグナル点灯のみ / 押し目優先で並べ替え / 配当性向100%超は除外
+   new = さらに「本日 新規点灯」だけに絞る
+   reset = 絞り込み・並び替えを既定に戻す(利回り下限はサーバー値) */
+function applyPreset(name) {
+  if (!state.raw) return;
+  const set = (id, v) => { const el = $("#" + id); if (el) el.value = v; };
+  if (name === "dip" || name === "new") {
+    set("tech", name === "new" ? "pullback_new" : "pullback");
+    set("sort", "pullback");
+    set("payout", "100");
+    set("sector", "");   // 個別銘柄を絞る条件はいったん外し、候補を一望できる状態に
+    set("q", "");
+  } else if (name === "reset") {
+    const c = state.raw.criteria || {};
+    set("dy", c.min_dividend_yield_pct || 4);
+    set("mc", "0"); set("sort", "mc"); set("sector", "");
+    set("q", ""); set("tech", ""); set("basis", ""); set("payout", "");
+  } else {
+    return;
+  }
+  persist();
+  render();
 }
 
 function applyTheme(pref) {

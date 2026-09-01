@@ -44,6 +44,17 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .summary strong { font-size: 1.15rem; color: var(--accent); }
 .summary .sub { display: block; font-size: .78rem; color: var(--muted); margin-top: 2px; }
 
+/* かんたん設定(操作手順のワンクリック反映) */
+.presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 8px; }
+.presets button {
+  flex: 1 1 auto; min-height: 42px; padding: 8px 12px;
+  font-size: .82rem; font-weight: 700; cursor: pointer;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text);
+}
+.presets button:active { transform: scale(.97); }
+.presets .p-main { border-color: var(--trend); color: var(--trend); }
+
 .legend {
   font-size: .72rem; color: var(--muted); line-height: 1.6;
   padding: 8px 10px; margin: 4px 0 8px;
