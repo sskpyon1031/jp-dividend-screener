@@ -112,6 +112,7 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
   font-size: .72rem; font-weight: 700; line-height: 1.4;
   padding: 2px 8px; border-radius: 999px;
   border: 1px solid currentColor; white-space: nowrap;
+  color: var(--muted);   /* 無印(中立)チップは控えめなグレー。good/warn は下で上書き */
   font-variant-numeric: tabular-nums;
 }
 .bdg-good { color: var(--trend); }
@@ -144,7 +145,8 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .gauge-note.warn, .gauge-note.bad { color: var(--gc); }
 .gauge-track {
   position: relative; height: 8px; margin-top: 4px;
-  border-radius: 999px; background: var(--chip); overflow: hidden;
+  border-radius: 999px; background: var(--chip);
+  border: 1px solid var(--line); overflow: hidden;
 }
 .gauge-fill { display: block; height: 100%; border-radius: 999px; background: var(--trend); }
 .gauge-fill.warn, .gauge-fill.bad { background: var(--gc); }
@@ -169,8 +171,9 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .r52-tag { font-weight: 700; color: var(--text); }
 .r52-track {
   position: relative; height: 8px; margin: 5px 0 3px; border-radius: 999px;
+  border: 1px solid var(--line);
   background: linear-gradient(90deg,
-    rgba(46,160,110,.30), var(--chip) 45%, var(--chip) 55%, rgba(212,160,60,.30));
+    rgba(46,160,110,.30), rgba(128,128,128,.12) 45%, rgba(128,128,128,.12) 55%, rgba(212,160,60,.30));
 }
 .r52-dot {
   position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
@@ -185,7 +188,7 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 /* RSI ゲージ(折りたたみ内。0/30/70/100 目盛り、●の色でゾーン) */
 .rsi-track {
   position: relative; height: 6px; margin: 5px 0 2px; border-radius: 999px;
-  background: var(--chip);
+  background: var(--chip); border: 1px solid var(--line);
 }
 .rsi-track::before, .rsi-track::after {
   content: ""; position: absolute; top: -3px; width: 1px; height: 12px; background: var(--line);
@@ -200,9 +203,12 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .rsi-dot.os { background: var(--trend); }
 .rsi-dot.ob { background: var(--gc); }
 .rsi-scale {
-  display: flex; justify-content: space-between;
+  position: relative; height: 12px; margin-top: 1px;
   font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums;
 }
+.rsi-scale span { position: absolute; transform: translateX(-50%); }
+.rsi-scale span:first-child { transform: none; }
+.rsi-scale span:last-child { transform: translateX(-100%); }
 
 /* 折りたたみ「詳細」 */
 details.more { margin-top: 8px; }

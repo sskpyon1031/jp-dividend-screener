@@ -269,14 +269,15 @@ function pullbackWhy(i) {
    何も該当しなければ空(=特筆すべき状態なし)。 */
 function badges(i) {
   const b = [];
+  // 押し目そのものは下のバナーで表現するので、チップは「本日新規」だけ残す
   if (i.pullback_new === true) {
-    b.push(`<span class="bdg bdg-new">押し目・本日新規</span>`);
-  } else if (i.pullback_signal === true) {
-    b.push(`<span class="bdg bdg-good">押し目</span>`);
+    b.push(`<span class="bdg bdg-new">本日新規</span>`);
   }
   if (i.rsi14 != null) {
     const r = Math.round(i.rsi14);
-    if (r <= 40) b.push(`<span class="bdg bdg-good">RSI ${r}</span>`);
+    // 30以下=売られすぎ(緑) / 31〜40=弱いだけ(中立) / 70以上=過熱(琥珀)
+    if (r <= 30) b.push(`<span class="bdg bdg-good">RSI ${r}</span>`);
+    else if (r <= 40) b.push(`<span class="bdg">RSI ${r}</span>`);
     else if (r >= 70) b.push(`<span class="bdg bdg-warn">RSI ${r}</span>`);
   }
   if (i.range_pos_pct != null) {
@@ -286,9 +287,7 @@ function badges(i) {
   }
   const g = i.days_since_golden_cross;
   if (g != null && g <= GC_NEW_DAYS) b.push(`<span class="bdg bdg-good">GC ${g}日</span>`);
-  if (i.payout_ratio != null && Math.round(i.payout_ratio) > 100) {
-    b.push(`<span class="bdg bdg-warn">配当性向 ${Math.round(i.payout_ratio)}%</span>`);
-  }
+  // 配当性向の超過は下のゲージ(⚠付き)で表現するのでチップは出さない
   return b.length ? `<div class="bdgs">${b.join("")}</div>` : "";
 }
 
@@ -306,9 +305,9 @@ function pullbackBanner(i) {
 function range52Bar(i) {
   if (i.range_pos_pct == null || i.range_52w_low == null || i.range_52w_high == null) return "";
   const p = Math.max(0, Math.min(100, i.range_pos_pct));
-  const dd = i.drawdown_from_high_pct;
-  const tag = `位置 ${Math.round(p)}%` +
-    (dd != null && dd < 0 ? ` ・ 高値 ${Math.round(dd)}%` : "");
+  // バー自体が「位置」なので、タグは高値からの下落率だけ添える(重複回避)
+  const dd = i.drawdown_from_high_pct != null ? Math.round(i.drawdown_from_high_pct) : null;
+  const tag = dd != null && dd <= -1 ? `高値から ${dd}%` : "";
   return `<div class="r52">
     <div class="r52-h"><span>52週レンジ</span><span class="r52-tag">${tag}</span></div>
     <div class="r52-track" aria-hidden="true"><i class="r52-dot" style="left:${p}%"></i></div>
@@ -326,7 +325,7 @@ function rsiGauge(i) {
   return `<div class="gauge rsi">
     <div class="gauge-h"><span>RSI(14)</span><b>${r}</b><span class="gauge-note">${lab}</span></div>
     <div class="rsi-track" aria-hidden="true"><i class="rsi-dot ${z}" style="left:${left}%"></i></div>
-    <div class="rsi-scale" aria-hidden="true"><span>0</span><span>30</span><span>70</span><span>100</span></div>
+    <div class="rsi-scale" aria-hidden="true"><span style="left:0">0</span><span style="left:30%">30</span><span style="left:70%">70</span><span style="left:100%">100</span></div>
   </div>`;
 }
 
