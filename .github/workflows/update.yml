@@ -2,7 +2,10 @@ name: update-screener
 
 on:
   schedule:
-    # 平日 08:00 UTC = 17:00 JST（東証の大引け後）
+    # 平日 1日2回。cron は UTC 指定（JST = UTC + 9）。
+    # 03:15 UTC = 12:15 JST（前場 11:30 終了後の昼スナップショット）
+    - cron: "15 3 * * 1-5"
+    # 08:00 UTC = 17:00 JST（東証の大引け後）
     - cron: "0 8 * * 1-5"
   workflow_dispatch: {}
 

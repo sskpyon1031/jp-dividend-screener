@@ -4,9 +4,11 @@
 
 処理の流れ:
   1. JPX公表の「東証上場銘柄一覧 (data_j.xls)」から母集団を作る
-  2. yfinance で各銘柄の株価・時価総額・予想配当利回りを取得
+  2. yfinance で各銘柄の株価・時価総額・予想配当利回り・実績EPSを取得
   3. config.json の条件(利回り下限・時価総額下限)で絞り込む
-  4. docs/data/latest.json と docs/data/history/<日付>.json に書き出す
+  4. 該当銘柄の日足からテクニカル(移動平均・GC・RSI・52週レンジ・押し目)を算出。
+     前日スナップショットと比べて押し目シグナルの「本日新規」も判定
+  5. docs/data/latest.json と docs/data/history/<日付>.json に書き出す
 
 GitHub Actions から毎営業日実行する想定。ローカルでも実行可。
 """
@@ -45,6 +47,11 @@ TREND_SCAN_MAX = 60      # 「〜日目」を数える上限(超えたら None)
 GC_NEAR_PCT = 0.03       # 25日線が75日線の 3% 以内まで接近したら「GC間近」候補
 GC_CONFIRM_DAYS = 5      # GC成立前に「25日線 < 75日線」が続くべき営業日数(ヒゲ除去)
 MA_SPARK_POINTS = 45     # カードのミニチャートに描く直近の移動平均の点数
+
+RSI_PERIOD = 14          # RSI の期間(Wilder 平滑)
+BB_MULT = 2.0            # ボリンジャーバンドの σ 倍率(押し目の下限判定に使用)
+PULLBACK_RSI_MAX = 40    # 「短期は調整中」とみなす RSI の上限
+RANGE_WINDOW = 252       # 52週レンジ(高値・安値)を測る営業日数
 
 
 def num(x):
@@ -172,9 +179,16 @@ def load_ma(items: list[dict]) -> dict[str, dict]:
       price_vs_ma25_pct          : 株価が25日線から何%上(+)/下(-)か(乖離率)
       above_ma25                 : 株価が25日線より上か
       ma25_above_ma75            : 25日線 > 75日線(ゴールデンクロス状態)か
+      ma75_rising                : 75日線(中期トレンド)が上向きか
       days_since_golden_cross    : 確定GCから何営業日か(未クロス/古すぎは None)
       gc_gap_pct                 : (25日線 / 75日線 - 1) * 100
       gc_approaching             : 未クロスだが 25日線が上向き & 差が縮小中 & 3%以内
+      rsi14                      : RSI(14, Wilder)。30以下=売られすぎ / 70以上=過熱
+      range_52w_low / _high      : 直近 RANGE_WINDOW 営業日の安値 / 高値
+      range_pos_pct              : 52週レンジ内での株価の位置(0=安値, 100=高値)
+      drawdown_from_high_pct     : 52週高値からの下落率(<=0)
+      bb_lower / below_bb_lower  : 25日 ± 2σ の下限 / 株価がそれ以下か
+      pullback_signal            : 中期は上昇継続 & 短期は調整中(押し目の目安)
 
     補助情報なので、取れなくても全体は止めない。
     """
@@ -238,6 +252,42 @@ def load_ma(items: list[dict]) -> dict[str, dict]:
             "above_ma25": bool(price > cur_s),
         }
 
+        # --- B. RSI(14, Wilder 平滑) ---
+        delta = close.diff()
+        gain = delta.clip(lower=0)
+        loss = (-delta).clip(lower=0)
+        roll_up = gain.ewm(alpha=1 / RSI_PERIOD, adjust=False, min_periods=RSI_PERIOD).mean()
+        roll_dn = loss.ewm(alpha=1 / RSI_PERIOD, adjust=False, min_periods=RSI_PERIOD).mean()
+        up_now, dn_now = num(roll_up.iloc[-1]), num(roll_dn.iloc[-1])
+        if up_now is not None and dn_now is not None:
+            if dn_now == 0:
+                rsi_val = 100.0 if up_now > 0 else None
+            else:
+                rsi_val = 100.0 - 100.0 / (1.0 + up_now / dn_now)
+            if rsi_val is not None:
+                rec["rsi14"] = round(rsi_val, 1)
+
+        # --- A. 52週レンジ内の位置 / 高値からの下落率 ---
+        # 高安と現在値は同じ「調整済み終値」ベースで比較する。intraday の price は
+        # 未調整のため、配当調整ぶんだけレンジが下方にずれて位置・下落率が甘く出る。
+        # 直近の終値は必ず窓に含まれるので位置は 0〜100 / 下落率は <=0 に収まる。
+        win = close.tail(RANGE_WINDOW)
+        if len(win) >= 200:                      # 「52週」を名乗れるだけの営業日数
+            lo, hi = num(win.min()), num(win.max())
+            last = num(close.iloc[-1])
+            if lo is not None and hi is not None and last is not None and hi > lo:
+                rec["range_52w_low"] = round(lo, 1)
+                rec["range_52w_high"] = round(hi, 1)
+                rec["range_pos_pct"] = round((last - lo) / (hi - lo) * 100, 1)
+                rec["drawdown_from_high_pct"] = round((last / hi - 1) * 100, 1)
+
+        # --- ボリンジャーバンド下限(25日 - 2σ) ---
+        sd = num(close.rolling(MA_SHORT).std().iloc[-1])
+        if sd is not None and sd > 0:
+            bb_lower = cur_s - BB_MULT * sd
+            rec["bb_lower"] = round(bb_lower, 1)
+            rec["below_bb_lower"] = bool(price <= bb_lower)
+
         both = ma_s_full.notna() & ma_l_full.notna()
         if both.any():
             s_v = ma_s_full[both].to_numpy()
@@ -249,6 +299,10 @@ def load_ma(items: list[dict]) -> dict[str, dict]:
                 rec["ma75"] = round(cur_l, 1)
                 rec["ma25_above_ma75"] = above_now
                 rec["gc_gap_pct"] = round(gap_now * 100, 2)
+                if len(l_v) > MA_SLOPE_LOOKBACK:
+                    past_l = float(l_v[-1 - MA_SLOPE_LOOKBACK])
+                    if past_l > 0:
+                        rec["ma75_rising"] = bool(cur_l / past_l - 1 > 0)
                 # カードのミニチャート用: 25日線/75日線の直近推移(同じ日付で揃える)
                 rec["ma25_hist"] = [round(float(v), 1) for v in s_v[-MA_SPARK_POINTS:]]
                 rec["ma75_hist"] = [round(float(v), 1) for v in l_v[-MA_SPARK_POINTS:]]
@@ -273,6 +327,16 @@ def load_ma(items: list[dict]) -> dict[str, dict]:
                         and past_gap is not None
                         and gap_now > past_gap
                     )
+
+        # --- C. 押し目シグナル: 中期は上昇継続 & 短期は調整中 ---
+        mid_up = rec.get("ma25_above_ma75") is True or rec.get("ma75_rising") is True
+        rsi = rec.get("rsi14")
+        short_pullback = (
+            (rsi is not None and rsi < PULLBACK_RSI_MAX)
+            or rec.get("above_ma25") is False
+            or rec.get("below_bb_lower") is True
+        )
+        rec["pullback_signal"] = bool(mid_up and short_pullback)
         out[sym] = rec
     return out
 
@@ -323,6 +387,25 @@ def fetch_one(symbol: str) -> dict | None:
             if dy is not None and not (0 < dy <= 30):
                 dy = None
 
+            # 配当性向(%): 1株配当 ÷ 実績EPS。dividend_basis が「予想」なら
+            # 予想配当÷実績EPS(配当が直近利益でどれだけ賄えているか)、「実績」なら
+            # 教科書どおりの配当性向になる。赤字(EPS<=0)・桁違いは無効化し、
+            # 自前で出せなければ info の payoutRatio(比率)で代替する。
+            eps = num(info.get("trailingEps"))
+            payout = None
+            if drate and eps and eps > 0:
+                payout = drate / eps * 100
+            elif drate and eps is None:
+                # EPS が「取れない」ときだけ payoutRatio で代替する。
+                # EPS が判っていて 0 以下(赤字)なら配当性向は無意味なので空欄のまま。
+                # payoutRatio は 0〜1(まれに >1)の「比率」。% で来る版に備え
+                # 5(=500%)以下のときだけ比率とみなして 100 倍する。
+                pr = num(info.get("payoutRatio"))
+                if pr is not None and 0 < pr <= 5:
+                    payout = pr * 100
+            if payout is not None and not (0 < payout <= 400):
+                payout = None
+
             if price is None or mcap is None:
                 raise ValueError("株価または時価総額が取得できません")
 
@@ -335,6 +418,7 @@ def fetch_one(symbol: str) -> dict | None:
                 "dividend_yield": round(dy, 2) if dy is not None else None,
                 "dividend_rate": round(drate, 2) if drate else None,
                 "dividend_basis": dbasis,
+                "payout_ratio": round(payout, 1) if payout is not None else None,
             }
         except Exception as e:  # noqa: BLE001
             last_err = e
@@ -398,6 +482,30 @@ def main() -> int:
         r.update(ma_map.get(r["symbol"], {}))
 
     now = dt.datetime.now(dt.timezone(dt.timedelta(hours=9)))
+
+    # D. 押し目シグナルの「本日 新規点灯」判定: 直近の *前営業日* スナップショットと比較。
+    # (同日に複数回実行しても、比較先は常に前日ぶん。前日データにフィールドが無ければ
+    #  誤検知を避けるため全銘柄 False にする)
+    today_str = f"{now:%Y-%m-%d}"
+    prev_files = sorted(p for p in HIST_DIR.glob("20*.json") if p.stem < today_str)
+    prev_signals: set[str] = set()
+    prev_has_field = False
+    if prev_files:
+        try:
+            prev = json.loads(prev_files[-1].read_text(encoding="utf-8"))
+            prev_items = prev.get("items", [])
+            prev_has_field = any("pullback_signal" in it for it in prev_items)
+            prev_signals = {
+                it["symbol"] for it in prev_items if it.get("pullback_signal")
+            }
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 前日スナップショットの読み込みに失敗: {e}", file=sys.stderr)
+    for r in picked:
+        r["pullback_new"] = bool(
+            prev_has_field
+            and r.get("pullback_signal")
+            and r["symbol"] not in prev_signals
+        )
     payload = {
         "generated_at": now.isoformat(timespec="seconds"),
         "criteria": {
@@ -407,6 +515,7 @@ def main() -> int:
             "ma_short": MA_SHORT,
             "ma_long": MA_LONG,
             "ma_slope_lookback": MA_SLOPE_LOOKBACK,
+            "rsi_period": RSI_PERIOD,
         },
         "universe_count": len(meta),
         "fetched_count": len(results),

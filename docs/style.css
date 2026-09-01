@@ -104,6 +104,18 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 }
 .yield b i { font-size: 1rem; font-style: normal; margin-left: 2px; }
 
+/* 配当性向(配当の余裕度) */
+.payout {
+  display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px;
+  font-size: .8rem; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.payout b { font-weight: 800; font-size: .92rem; }
+.payout span { font-size: .72rem; }
+.payout.ok b { color: var(--trend); }
+.payout.warn b { color: var(--gc); }
+.payout.bad b, .payout.bad span { color: var(--gc); }
+
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 8px; }
 .metrics div {
   display: flex; justify-content: space-between; gap: 8px;
@@ -124,6 +136,29 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .tech .t-up { color: var(--trend); }
 .tech .t-muted { color: var(--muted); }
 .tech .t-gc { color: var(--gc); font-weight: 700; }
+
+/* 買いタイミングの目安(押し目シグナル / RSI / 52週レンジ位置) */
+.timing { margin: 6px 0 2px; display: grid; gap: 3px; }
+.pullback {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  font-size: .84rem; font-weight: 800; color: var(--trend);
+}
+.pullback::before {
+  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--trend);
+}
+.pb-new {
+  font-size: .68rem; font-weight: 800; color: #1c1400; background: var(--gc);
+  padding: 1px 6px; border-radius: 999px; letter-spacing: .02em;
+}
+.pb-why { font-size: .72rem; font-weight: 600; color: var(--muted); }
+.timing-sub {
+  font-size: .76rem; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums; line-height: 1.6;
+  display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 2px;
+}
+.timing-sub .t-up { color: var(--trend); }
+.timing-sub .t-muted { color: var(--muted); }
 
 /* 25日線・75日線のミニチャート */
 .spark-wrap { position: relative; margin: 0 0 4px; }

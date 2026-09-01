@@ -25,7 +25,11 @@
   <p class="legend">
     ミニチャートの<span class="lg-25">緑線=25日移動平均</span> /
     <span class="lg-75">灰線=75日移動平均</span>、<span class="lg-x">●</span>=クロス地点。
-    「ゴールデンクロス」は25日線が75日線を上抜けること(強気転換の目安)。
+    「ゴールデンクロス」は25日線が75日線を上抜けること(強気転換の目安)。<br>
+    「押し目シグナル」は<b>中期(75日線 or 25&gt;75)は上昇継続</b>なのに
+    <b>短期は調整中(RSI&lt;40 / 25日線割れ / バンド下限)</b>の状態。
+    RSI は 30以下=売られすぎ・70以上=過熱。52週位置は 0%=安値・100%=高値。
+    いずれも打診買いの目安で、売買の推奨ではありません。
   </p>
 
   <details id="filters" class="filters">
@@ -33,6 +37,21 @@
     <div class="filters-body">
       <label>表示する利回りの下限 <output id="dyOut"></output>
         <input type="range" id="dy" min="3" max="10" step="0.1">
+      </label>
+      <label>配当の基準
+        <select id="basis">
+          <option value="">すべて</option>
+          <option value="予想">予想配当のみ</option>
+          <option value="実績">実績配当のみ</option>
+        </select>
+      </label>
+      <label>配当性向の上限
+        <select id="payout">
+          <option value="">すべて</option>
+          <option value="50">50%以下(余裕あり)</option>
+          <option value="80">80%以下</option>
+          <option value="100">100%以下(利益の範囲内)</option>
+        </select>
       </label>
       <label>時価総額の下限
         <select id="mc">
@@ -49,6 +68,10 @@
       <label>テクニカルで絞り込み
         <select id="tech">
           <option value="">指定なし</option>
+          <option value="pullback">押し目シグナル点灯</option>
+          <option value="pullback_new">押し目シグナル(本日新規)</option>
+          <option value="rsi_os">RSIが売られすぎ(30以下)</option>
+          <option value="near_low">52週安値圏(レンジ下位25%)</option>
           <option value="ma_up">25日線が上向き</option>
           <option value="turn">上向きに転じて10日以内(初動)</option>
           <option value="above">株価が25日線より上</option>
@@ -60,6 +83,10 @@
         <select id="sort">
           <option value="mc">時価総額が大きい順</option>
           <option value="dy">配当利回りが高い順</option>
+          <option value="pullback">押し目シグナル優先</option>
+          <option value="range_pos">52週レンジ下位順(安値寄り)</option>
+          <option value="rsi">RSIが低い順</option>
+          <option value="dd">高値からの下落率が大きい順</option>
           <option value="ma">25日線の傾きが大きい順</option>
           <option value="turn">上向きに転じて日が浅い順</option>
           <option value="gc">ゴールデンクロスが新しい順</option>

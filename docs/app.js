@@ -60,6 +60,10 @@ function initControls() {
   $("#sector").value = sectors.includes(f.sector) ? f.sector : "";
   $("#q").value = f.q ?? "";
   $("#tech").value = f.tech ?? "";
+  // basis / payout は後から追加した要素。旧 index.html がキャッシュから
+  // 出た過渡期でも落ちないよう存在を確認してから触る。
+  const basisEl = $("#basis"); if (basisEl) basisEl.value = f.basis ?? "";
+  const payoutEl = $("#payout"); if (payoutEl) payoutEl.value = f.payout ?? "";
 
   applyTheme(f.theme);
   $("#theme").checked = document.documentElement.dataset.theme === "dark";
@@ -68,7 +72,7 @@ function initControls() {
 /* イベントバインドはデータ取得の成否と無関係に一度だけ行う
    (取得失敗時でも再読み込みボタンを効かせるため) */
 function bindControls() {
-  ["dy", "mc", "sort", "sector", "tech"].forEach(id => $("#" + id).addEventListener("input", onFilter));
+  ["dy", "mc", "sort", "sector", "tech", "basis", "payout"].forEach(id => $("#" + id)?.addEventListener("input", onFilter));
   $("#q").addEventListener("input", onFilter);
   $("#theme").addEventListener("change", () => {
     applyTheme($("#theme").checked ? "dark" : "light");
@@ -103,6 +107,8 @@ function persist() {
       sector: $("#sector").value,
       q: $("#q").value.trim(),
       tech: $("#tech").value,
+      basis: $("#basis")?.value ?? state.f.basis ?? "",
+      payout: $("#payout")?.value ?? state.f.payout ?? "",
       theme: state.f.theme,
     };
   }
@@ -121,12 +127,16 @@ function render() {
   const q = $("#q").value.trim().toLowerCase();
   const sort = $("#sort").value;
   const tech = $("#tech").value;
+  const basis = $("#basis")?.value || "";
+  const maxPayout = parseFloat($("#payout")?.value) || 0;
 
   const rows = d.items.filter(i =>
     (i.dividend_yield ?? 0) >= minDy &&
     i.market_cap >= minMc &&
     (!sec || i.sector === sec) &&
     techPass(i, tech) &&
+    (!basis || i.dividend_basis === basis) &&
+    (!maxPayout || (i.payout_ratio != null && i.payout_ratio <= maxPayout)) &&
     (!q || i.name.toLowerCase().includes(q) || String(i.code).includes(q))
   );
 
@@ -138,6 +148,13 @@ function render() {
     gc: (a, b) => (a.days_since_golden_cross ?? 1e9) - (b.days_since_golden_cross ?? 1e9),
     chg_desc: (a, b) => (b.change_pct ?? -1e9) - (a.change_pct ?? -1e9),
     chg_asc: (a, b) => (a.change_pct ?? 1e9) - (b.change_pct ?? 1e9),
+    range_pos: (a, b) => (a.range_pos_pct ?? 1e9) - (b.range_pos_pct ?? 1e9),
+    rsi: (a, b) => (a.rsi14 ?? 1e9) - (b.rsi14 ?? 1e9),
+    dd: (a, b) => (a.drawdown_from_high_pct ?? 1e9) - (b.drawdown_from_high_pct ?? 1e9),
+    pullback: (a, b) =>
+      ((b.pullback_signal === true) - (a.pullback_signal === true)) ||
+      ((b.pullback_new === true) - (a.pullback_new === true)) ||
+      ((a.rsi14 ?? 1e9) - (b.rsi14 ?? 1e9)),
     code: (a, b) => String(a.code).localeCompare(String(b.code)),
   };
   rows.sort(cmps[sort] || cmps.mc);
@@ -175,6 +192,10 @@ function techPass(i, tech) {
     case "above":  return i.above_ma25 === true;
     case "gc_new": return i.days_since_golden_cross != null && i.days_since_golden_cross <= GC_NEW_DAYS;
     case "gc_near": return i.gc_approaching === true;
+    case "pullback":     return i.pullback_signal === true;
+    case "pullback_new": return i.pullback_new === true;
+    case "rsi_os":       return i.rsi14 != null && i.rsi14 <= 30;
+    case "near_low":      return i.range_pos_pct != null && i.range_pos_pct <= 25;
     default:       return true;
   }
 }
@@ -219,6 +240,57 @@ function gcLine(i) {
     return `<div class="gc-line down">クロス前(25日線 &lt; 75日線)</div>`;
   }
   return "";
+}
+
+/* 配当性向(1株配当 ÷ 実績EPS)を「配当の余裕度」のことばで示す1行 */
+function payoutLine(i) {
+  const p = i.payout_ratio;
+  if (p == null) return "";
+  const r = Math.round(p);   // 表示値としきい値判定を一致させる
+  const cls = r > 100 ? "bad" : r > 80 ? "warn" : "ok";
+  const note = r > 100 ? "⚠ 利益を超える配当" : r > 80 ? "やや高め" : "利益に余裕";
+  return `<div class="payout ${cls}">配当性向 <b>${r}%</b><span>${note}</span></div>`;
+}
+
+/* 押し目シグナルが「なぜ点灯したか」を短く添える */
+function pullbackWhy(i) {
+  const w = [];
+  if (i.rsi14 != null && i.rsi14 < 40) w.push("RSI " + Math.round(i.rsi14));
+  if (i.above_ma25 === false) w.push("25日線割れ");
+  if (i.below_bb_lower === true) w.push("バンド下限");
+  return w.length ? "（" + w.join("・") + "）" : "";
+}
+
+/* 買いタイミングの目安: 押し目シグナル / RSI / 52週レンジ内の位置 */
+function timingBlock(i) {
+  const parts = [];
+
+  if (i.pullback_signal === true) {
+    const nu = i.pullback_new === true ? `<span class="pb-new">本日新規</span>` : "";
+    parts.push(
+      `<div class="pullback">押し目シグナル${nu}` +
+      `<span class="pb-why">${pullbackWhy(i)}</span></div>`
+    );
+  }
+
+  const sub = [];
+  if (i.rsi14 != null) {
+    const r = Math.round(i.rsi14);
+    const lab = r <= 30 ? "売られすぎ" : r < 40 ? "やや売られ" : r >= 70 ? "過熱" : "中立";
+    sub.push(`<span class="${r <= 30 ? "t-up" : r >= 70 ? "t-muted" : ""}">RSI ${r}(${lab})</span>`);
+  }
+  if (i.range_pos_pct != null) {
+    const p = Math.round(i.range_pos_pct);
+    const zone = p <= 25 ? "安値圏" : p >= 75 ? "高値圏" : "中位";
+    let s = `52週位置 ${p}%(${zone})`;
+    if (i.drawdown_from_high_pct != null && i.drawdown_from_high_pct < 0) {
+      s += ` ・ 高値から ${i.drawdown_from_high_pct.toFixed(1)}%`;
+    }
+    sub.push(`<span class="${p <= 25 ? "t-up" : ""}">${s}</span>`);
+  }
+  if (sub.length) parts.push(`<div class="timing-sub">${sub.join("")}</div>`);
+
+  return parts.length ? `<div class="timing">${parts.join("")}</div>` : "";
 }
 
 /* 25日線(緑)・75日線(灰)の直近推移と、交差点(●)を描くミニチャート */
@@ -287,7 +359,9 @@ function card(i) {
     ${techLines(i)}
     ${chartBlock(i)}
     ${gcLine(i)}
+    ${timingBlock(i)}
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
+    ${payoutLine(i)}
     <dl class="metrics">
       <div><dt>株価</dt><dd>${price(i.price)}</dd></div>
       <div><dt>前日比</dt><dd class="${chgCls}">${pct(chg)}</dd></div>
