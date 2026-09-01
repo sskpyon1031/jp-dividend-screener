@@ -104,17 +104,50 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 }
 .yield b i { font-size: 1rem; font-style: normal; margin-left: 2px; }
 
-/* 配当性向(配当の余裕度) */
-.payout {
-  display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px;
-  font-size: .8rem; font-weight: 600; color: var(--muted);
+/* 状態チップ列(緑=好機/割安, 琥珀=注意/割高。前日比の赤緑とは別系統) */
+.bdgs {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px;
+}
+.bdg {
+  font-size: .72rem; font-weight: 700; line-height: 1.4;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid currentColor; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.payout b { font-weight: 800; font-size: .92rem; }
-.payout span { font-size: .72rem; }
-.payout.ok b { color: var(--trend); }
-.payout.warn b { color: var(--gc); }
-.payout.bad b, .payout.bad span { color: var(--gc); }
+.bdg-good { color: var(--trend); }
+.bdg-warn { color: var(--gc); }
+.bdg-new  { color: #06130d; background: var(--trend); border-color: var(--trend); }
+
+/* 押し目シグナルのバナー(点灯時のみ) */
+.pbn {
+  margin: 8px 0 4px; padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--trend); border-radius: 8px;
+  background: rgba(46, 160, 110, .12);   /* 緑の薄敷き。両テーマで成立する固定 rgba */
+  font-size: .82rem; line-height: 1.5;
+}
+.pbn b { font-weight: 800; color: var(--trend); }
+.pbn-new {
+  font-size: .68rem; font-weight: 800; color: #06130d; background: var(--trend);
+  padding: 1px 6px; border-radius: 999px; margin-left: 6px; letter-spacing: .02em;
+}
+.pbn-txt { display: block; color: var(--muted); font-weight: 600; margin-top: 1px; }
+
+/* 数値バー(配当性向 / RSI 共通の枠) */
+.gauge { margin: 6px 0 2px; }
+.gauge-h {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: .78rem; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.gauge-h b { font-size: .95rem; font-weight: 800; color: var(--text); }
+.gauge-note { font-size: .72rem; }
+.gauge-note.warn, .gauge-note.bad { color: var(--gc); }
+.gauge-track {
+  position: relative; height: 8px; margin-top: 4px;
+  border-radius: 999px; background: var(--chip); overflow: hidden;
+}
+.gauge-fill { display: block; height: 100%; border-radius: 999px; background: var(--trend); }
+.gauge-fill.warn, .gauge-fill.bad { background: var(--gc); }
 
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 8px; }
 .metrics div {
@@ -126,39 +159,67 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 .metrics dd.up { color: var(--up); }
 .metrics dd.down { color: var(--down); }
 
-/* テクニカル1行(25日線の向き / 株価乖離) */
-.tech {
-  margin-top: 8px; font-size: .8rem; font-weight: 600;
-  font-variant-numeric: tabular-nums; line-height: 1.6;
-  display: flex; flex-wrap: wrap; align-items: center;
-  column-gap: 16px; row-gap: 2px;
+/* 52週レンジ・バー(左=安値・緑寄り / 右=高値・琥珀寄り、●=現在地) */
+.r52 { margin: 8px 0 2px; }
+.r52-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: .78rem; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
-.tech .t-up { color: var(--trend); }
-.tech .t-muted { color: var(--muted); }
-.tech .t-gc { color: var(--gc); font-weight: 700; }
+.r52-tag { font-weight: 700; color: var(--text); }
+.r52-track {
+  position: relative; height: 8px; margin: 5px 0 3px; border-radius: 999px;
+  background: linear-gradient(90deg,
+    rgba(46,160,110,.30), var(--chip) 45%, var(--chip) 55%, rgba(212,160,60,.30));
+}
+.r52-dot {
+  position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--text);
+  box-shadow: 0 0 0 2px var(--card);
+}
+.r52-ends {
+  display: flex; justify-content: space-between;
+  font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
 
-/* 買いタイミングの目安(押し目シグナル / RSI / 52週レンジ位置) */
-.timing { margin: 6px 0 2px; display: grid; gap: 3px; }
-.pullback {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-  font-size: .84rem; font-weight: 800; color: var(--trend);
+/* RSI ゲージ(折りたたみ内。0/30/70/100 目盛り、●の色でゾーン) */
+.rsi-track {
+  position: relative; height: 6px; margin: 5px 0 2px; border-radius: 999px;
+  background: var(--chip);
 }
-.pullback::before {
-  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--trend);
+.rsi-track::before, .rsi-track::after {
+  content: ""; position: absolute; top: -3px; width: 1px; height: 12px; background: var(--line);
 }
-.pb-new {
-  font-size: .68rem; font-weight: 800; color: #1c1400; background: var(--gc);
-  padding: 1px 6px; border-radius: 999px; letter-spacing: .02em;
+.rsi-track::before { left: 30%; }
+.rsi-track::after  { left: 70%; }
+.rsi-dot {
+  position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--muted);
+  box-shadow: 0 0 0 2px var(--card);
 }
-.pb-why { font-size: .72rem; font-weight: 600; color: var(--muted); }
-.timing-sub {
-  font-size: .76rem; font-weight: 600; color: var(--muted);
-  font-variant-numeric: tabular-nums; line-height: 1.6;
-  display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 2px;
+.rsi-dot.os { background: var(--trend); }
+.rsi-dot.ob { background: var(--gc); }
+.rsi-scale {
+  display: flex; justify-content: space-between;
+  font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums;
 }
-.timing-sub .t-up { color: var(--trend); }
-.timing-sub .t-muted { color: var(--muted); }
+
+/* 折りたたみ「詳細」 */
+details.more { margin-top: 8px; }
+details.more > summary {
+  cursor: pointer; list-style: none; font-size: .76rem; font-weight: 600;
+  color: var(--accent); padding: 4px 0;
+}
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: " ▾"; color: var(--muted); }
+details.more[open] > summary::after { content: " ▴"; }
+.dtl-rows {
+  display: flex; flex-wrap: wrap; column-gap: 16px; row-gap: 2px;
+  font-size: .78rem; font-weight: 600; line-height: 1.6;
+  font-variant-numeric: tabular-nums; margin: 2px 0 4px;
+}
+.dtl-rows .t-up { color: var(--trend); }
+.dtl-rows .t-muted { color: var(--muted); }
 
 /* 25日線・75日線のミニチャート */
 .spark-wrap { position: relative; margin: 0 0 4px; }

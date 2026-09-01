@@ -204,27 +204,9 @@ function turnRank(i) {
   return (i.ma25_rising === true && i.ma25_rising_days >= 1) ? i.ma25_rising_days : 1e9;
 }
 
-/* カード上部のテクニカル1行(25日線の向き / 株価乖離) */
-function techLines(i) {
-  if (i.ma25_rising == null && i.above_ma25 == null) return "";
-  const parts = [];
-
-  if (i.ma25_rising === true) {
-    const d = i.ma25_rising_days >= 1 ? ` ${i.ma25_rising_days}日目` : "";
-    parts.push(`<span class="t-up">25日線 ↗ 上向き${d}</span>`);
-  } else if (i.ma25_rising === false) {
-    parts.push(`<span class="t-muted">25日線 ↘ 下向き</span>`);
-  }
-
-  if (i.price_vs_ma25_pct != null) {
-    parts.push(`<span class="${i.above_ma25 ? "t-up" : "t-muted"}">株価${slope(i.price_vs_ma25_pct)}</span>`);
-  }
-
-  return parts.length ? `<div class="tech">${parts.join("")}</div>` : "";
-}
-
-/* ゴールデンクロスの状態を「ことば」で表す1行 */
-function gcLine(i) {
+/* 時間の限られたGC状態(新しいGC / 接近中)だけをカード本体に太字1行で出す。
+   静的な「上昇配列 / クロス前」は detailBlock 側にまわす。 */
+function gcFreshLine(i) {
   const g = i.days_since_golden_cross;
   if (g != null && g <= GC_NEW_DAYS) {
     return `<div class="gc-line fresh">ゴールデンクロス <b>${g}営業日前</b>・強気転換のサイン</div>`;
@@ -233,23 +215,45 @@ function gcLine(i) {
     const gap = i.gc_gap_pct != null ? Math.abs(i.gc_gap_pct).toFixed(1) : "";
     return `<div class="gc-line near">ゴールデンクロスまで <b>あと ${gap}%</b>・接近中</div>`;
   }
-  if (i.ma25_above_ma75 === true) {
-    return `<div class="gc-line up">上昇配列(25日線 &gt; 75日線)</div>`;
-  }
-  if (i.ma25_above_ma75 === false) {
-    return `<div class="gc-line down">クロス前(25日線 &lt; 75日線)</div>`;
-  }
   return "";
 }
 
-/* 配当性向(1株配当 ÷ 実績EPS)を「配当の余裕度」のことばで示す1行 */
-function payoutLine(i) {
+/* 折りたたみ内に出す、移動平均まわりのプレーンな説明行 */
+function maDetailRows(i) {
+  const rows = [];
+  if (i.ma25_rising === true) {
+    const d = i.ma25_rising_days >= 1 ? ` ${i.ma25_rising_days}日目` : "";
+    rows.push(`<span class="t-up">25日線 ↗ 上向き${d}</span>`);
+  } else if (i.ma25_rising === false) {
+    rows.push(`<span class="t-muted">25日線 ↘ 下向き</span>`);
+  }
+  if (i.price_vs_ma25_pct != null) {
+    rows.push(`<span class="${i.above_ma25 ? "t-up" : "t-muted"}">株価は25日線${slope(i.price_vs_ma25_pct)}</span>`);
+  }
+  // 新しいGC/接近中はカード本体で出しているので、ここは静的な状態だけ
+  const g = i.days_since_golden_cross;
+  const fresh = (g != null && g <= GC_NEW_DAYS) || i.gc_approaching === true;
+  if (!fresh && i.ma25_above_ma75 === true) {
+    const gap = i.gc_gap_pct != null ? `(差 +${i.gc_gap_pct.toFixed(1)}%)` : "";
+    rows.push(`<span class="t-muted">上昇配列 25日線 &gt; 75日線 ${gap}</span>`);
+  } else if (!fresh && i.ma25_above_ma75 === false) {
+    const gap = i.gc_gap_pct != null ? `(あと ${Math.abs(i.gc_gap_pct).toFixed(1)}%)` : "";
+    rows.push(`<span class="t-muted">クロス前 25日線 &lt; 75日線 ${gap}</span>`);
+  }
+  return rows;
+}
+
+/* 配当性向のバー(0〜100%+、緑=余裕 / 琥珀=高め・超過) */
+function payoutGauge(i) {
   const p = i.payout_ratio;
   if (p == null) return "";
-  const r = Math.round(p);   // 表示値としきい値判定を一致させる
+  const r = Math.round(p);
   const cls = r > 100 ? "bad" : r > 80 ? "warn" : "ok";
   const note = r > 100 ? "⚠ 利益を超える配当" : r > 80 ? "やや高め" : "利益に余裕";
-  return `<div class="payout ${cls}">配当性向 <b>${r}%</b><span>${note}</span></div>`;
+  return `<div class="gauge">
+    <div class="gauge-h"><span>配当性向</span><b>${r}%</b><span class="gauge-note ${cls}">${note}</span></div>
+    <div class="gauge-track" aria-hidden="true"><i class="gauge-fill ${cls}" style="width:${Math.min(r, 100)}%"></i></div>
+  </div>`;
 }
 
 /* 押し目シグナルが「なぜ点灯したか」を短く添える */
@@ -261,36 +265,77 @@ function pullbackWhy(i) {
   return w.length ? "（" + w.join("・") + "）" : "";
 }
 
-/* 買いタイミングの目安: 押し目シグナル / RSI / 52週レンジ内の位置 */
-function timingBlock(i) {
-  const parts = [];
-
-  if (i.pullback_signal === true) {
-    const nu = i.pullback_new === true ? `<span class="pb-new">本日新規</span>` : "";
-    parts.push(
-      `<div class="pullback">押し目シグナル${nu}` +
-      `<span class="pb-why">${pullbackWhy(i)}</span></div>`
-    );
+/* カード上部の状態チップ列。20枚を読まずにスクロールして選別するための一覧性。
+   何も該当しなければ空(=特筆すべき状態なし)。 */
+function badges(i) {
+  const b = [];
+  if (i.pullback_new === true) {
+    b.push(`<span class="bdg bdg-new">押し目・本日新規</span>`);
+  } else if (i.pullback_signal === true) {
+    b.push(`<span class="bdg bdg-good">押し目</span>`);
   }
-
-  const sub = [];
   if (i.rsi14 != null) {
     const r = Math.round(i.rsi14);
-    const lab = r <= 30 ? "売られすぎ" : r < 40 ? "やや売られ" : r >= 70 ? "過熱" : "中立";
-    sub.push(`<span class="${r <= 30 ? "t-up" : r >= 70 ? "t-muted" : ""}">RSI ${r}(${lab})</span>`);
+    if (r <= 40) b.push(`<span class="bdg bdg-good">RSI ${r}</span>`);
+    else if (r >= 70) b.push(`<span class="bdg bdg-warn">RSI ${r}</span>`);
   }
   if (i.range_pos_pct != null) {
     const p = Math.round(i.range_pos_pct);
-    const zone = p <= 25 ? "安値圏" : p >= 75 ? "高値圏" : "中位";
-    let s = `52週位置 ${p}%(${zone})`;
-    if (i.drawdown_from_high_pct != null && i.drawdown_from_high_pct < 0) {
-      s += ` ・ 高値から ${i.drawdown_from_high_pct.toFixed(1)}%`;
-    }
-    sub.push(`<span class="${p <= 25 ? "t-up" : ""}">${s}</span>`);
+    if (p <= 25) b.push(`<span class="bdg bdg-good">安値圏 ${p}%</span>`);
+    else if (p >= 75) b.push(`<span class="bdg bdg-warn">高値圏 ${p}%</span>`);
   }
-  if (sub.length) parts.push(`<div class="timing-sub">${sub.join("")}</div>`);
+  const g = i.days_since_golden_cross;
+  if (g != null && g <= GC_NEW_DAYS) b.push(`<span class="bdg bdg-good">GC ${g}日</span>`);
+  if (i.payout_ratio != null && Math.round(i.payout_ratio) > 100) {
+    b.push(`<span class="bdg bdg-warn">配当性向 ${Math.round(i.payout_ratio)}%</span>`);
+  }
+  return b.length ? `<div class="bdgs">${b.join("")}</div>` : "";
+}
 
-  return parts.length ? `<div class="timing">${parts.join("")}</div>` : "";
+/* 最重要シグナル。点灯時だけ枠付きバナーに格上げする。 */
+function pullbackBanner(i) {
+  if (i.pullback_signal !== true) return "";
+  const tag = i.pullback_new === true ? `<span class="pbn-new">本日新規</span>` : "";
+  return `<div class="pbn">
+    <b>押し目シグナル</b>${tag}
+    <span class="pbn-txt">中期は上昇継続・短期は調整中${pullbackWhy(i)}</span>
+  </div>`;
+}
+
+/* 52週レンジ内の位置をバーで示す(左=安値・緑 / 右=高値・琥珀、●=現在地)。 */
+function range52Bar(i) {
+  if (i.range_pos_pct == null || i.range_52w_low == null || i.range_52w_high == null) return "";
+  const p = Math.max(0, Math.min(100, i.range_pos_pct));
+  const dd = i.drawdown_from_high_pct;
+  const tag = `位置 ${Math.round(p)}%` +
+    (dd != null && dd < 0 ? ` ・ 高値 ${Math.round(dd)}%` : "");
+  return `<div class="r52">
+    <div class="r52-h"><span>52週レンジ</span><span class="r52-tag">${tag}</span></div>
+    <div class="r52-track" aria-hidden="true"><i class="r52-dot" style="left:${p}%"></i></div>
+    <div class="r52-ends"><span>${yen(i.range_52w_low)}</span><span>${yen(i.range_52w_high)}</span></div>
+  </div>`;
+}
+
+/* RSI(14) のゲージ。0/30/70/100 目盛り、●の色でゾーンを示す。折りたたみ内で使用。 */
+function rsiGauge(i) {
+  if (i.rsi14 == null) return "";
+  const r = Math.round(i.rsi14);
+  const z = r <= 30 ? "os" : r >= 70 ? "ob" : "mid";
+  const lab = r <= 30 ? "売られすぎ" : r < 40 ? "やや売られ" : r >= 70 ? "過熱" : "中立";
+  const left = Math.max(0, Math.min(100, r));
+  return `<div class="gauge rsi">
+    <div class="gauge-h"><span>RSI(14)</span><b>${r}</b><span class="gauge-note">${lab}</span></div>
+    <div class="rsi-track" aria-hidden="true"><i class="rsi-dot ${z}" style="left:${left}%"></i></div>
+    <div class="rsi-scale" aria-hidden="true"><span>0</span><span>30</span><span>70</span><span>100</span></div>
+  </div>`;
+}
+
+/* 補助情報は折りたたみに集約(既定は閉じる)。中身が無ければ何も出さない。 */
+function detailBlock(i) {
+  const rows = maDetailRows(i);
+  const body = (rows.length ? `<div class="dtl-rows">${rows.join("")}</div>` : "") + rsiGauge(i);
+  if (!body) return "";
+  return `<details class="more"><summary>詳細（移動平均・GC・RSI）</summary>${body}</details>`;
 }
 
 /* 25日線(緑)・75日線(灰)の直近推移と、交差点(●)を描くミニチャート */
@@ -356,18 +401,20 @@ function card(i) {
       <span class="name">${esc(i.name)}</span>
       <span class="chip">${esc(i.sector)}</span>
     </div>
-    ${techLines(i)}
+    ${badges(i)}
+    ${pullbackBanner(i)}
+    ${gcFreshLine(i)}
     ${chartBlock(i)}
-    ${gcLine(i)}
-    ${timingBlock(i)}
     <div class="yield"><span>配当利回り</span><b>${dy}<i>%</i></b></div>
-    ${payoutLine(i)}
+    ${payoutGauge(i)}
+    ${range52Bar(i)}
     <dl class="metrics">
       <div><dt>株価</dt><dd>${price(i.price)}</dd></div>
       <div><dt>前日比</dt><dd class="${chgCls}">${pct(chg)}</dd></div>
       <div><dt>時価総額</dt><dd>${yen(i.market_cap)}</dd></div>
       <div><dt>${divLabel}</dt><dd>${dividend}</dd></div>
     </dl>
+    ${detailBlock(i)}
   </li>`;
 }
 
