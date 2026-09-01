@@ -95,8 +95,10 @@ function applyPreset(name) {
     set("tech", name === "new" ? "pullback_new" : "pullback");
     set("sort", "pullback");
     set("payout", "100");
-    set("sector", "");   // 個別銘柄を絞る条件はいったん外し、候補を一望できる状態に
+    // 個別銘柄を絞る条件はいったん外し、候補を一望できる状態に
+    set("sector", "");
     set("q", "");
+    set("basis", "");
   } else if (name === "reset") {
     const c = state.raw.criteria || {};
     set("dy", c.min_dividend_yield_pct || 4);
