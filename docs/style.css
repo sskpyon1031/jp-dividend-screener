@@ -288,6 +288,6 @@ details.more[open] > summary::after { content: " ▴"; }
 .disclaimer p { margin: 6px 0; }
 
 @media (min-width: 520px) {
-  .metrics { grid-template-columns: repeat(4, 1fr); }
+  .metrics { grid-template-columns: repeat(3, 1fr); }
   .metrics div { flex-direction: column; gap: 2px; }
 }

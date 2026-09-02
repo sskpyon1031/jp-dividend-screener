@@ -4,7 +4,7 @@
 
 処理の流れ:
   1. JPX公表の「東証上場銘柄一覧 (data_j.xls)」から母集団を作る
-  2. yfinance で各銘柄の株価・時価総額・予想配当利回り・実績EPSを取得
+  2. yfinance で各銘柄の株価・時価総額・予想配当利回り・実績EPS・ROEを取得
   3. config.json の条件(利回り下限・時価総額下限)で絞り込む
   4. 該当銘柄の日足からテクニカル(移動平均・GC・RSI・52週レンジ・押し目)を算出。
      前日スナップショットと比べて押し目シグナルの「本日新規」も判定
@@ -406,6 +406,14 @@ def fetch_one(symbol: str) -> dict | None:
             if payout is not None and not (0 < payout <= 400):
                 payout = None
 
+            # ROE(自己資本利益率, %)。yfinance は比率(0.12 = 12%)。
+            # 自己資本が極小/マイナスだと桁違いになるため、常識的な範囲外は無効化。
+            roe = num(info.get("returnOnEquity"))
+            if roe is not None:
+                roe *= 100
+                if not (-100 <= roe <= 300):
+                    roe = None
+
             if price is None or mcap is None:
                 raise ValueError("株価または時価総額が取得できません")
 
@@ -419,6 +427,7 @@ def fetch_one(symbol: str) -> dict | None:
                 "dividend_rate": round(drate, 2) if drate else None,
                 "dividend_basis": dbasis,
                 "payout_ratio": round(payout, 1) if payout is not None else None,
+                "roe": round(roe, 1) if roe is not None else None,
             }
         except Exception as e:  # noqa: BLE001
             last_err = e

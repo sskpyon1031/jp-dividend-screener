@@ -444,6 +444,7 @@ function card(i) {
       <div><dt>前日比</dt><dd class="${chgCls}">${pct(chg)}</dd></div>
       <div><dt>時価総額</dt><dd>${yen(i.market_cap)}</dd></div>
       <div><dt>${divLabel}</dt><dd>${dividend}</dd></div>
+      <div><dt>ROE</dt><dd>${i.roe != null ? i.roe.toFixed(1) + "%" : "—"}</dd></div>
     </dl>
     ${detailBlock(i)}
   </li>`;
