@@ -212,6 +212,28 @@ function render() {
 
   $("#list").innerHTML = rows.map(card).join("");
   $("#empty").hidden = rows.length > 0;
+  markActivePreset();
+}
+
+/* いまの絞り込み・並び替えがどのプリセットと一致するか(なければ "")。
+   dip/new は個別条件(業種・検索・基準)を外した状態＋固有の tech/sort/payout で判定。
+   利回り下限・時価総額はユーザー設定なので判定に含めない。 */
+function activePreset() {
+  const v = id => $("#" + id)?.value ?? "";
+  const cleared = v("sector") === "" && v("q") === "" && v("basis") === "";
+  const dipShape = cleared && v("sort") === "range_pos" && v("payout") === "100";
+  if (dipShape && v("tech") === "pullback_value") return "dip";
+  if (dipShape && v("tech") === "pullback_new") return "new";
+  return "";
+}
+
+function markActivePreset() {
+  const a = activePreset();
+  document.querySelectorAll(".presets button").forEach(b => {
+    const on = b.dataset.preset === a;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
 }
 
 /* テクニカル絞り込みの判定 */

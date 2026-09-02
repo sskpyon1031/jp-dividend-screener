@@ -54,6 +54,10 @@ main { max-width: 680px; margin: 0 auto; padding: 12px; }
 }
 .presets button:active { transform: scale(.97); }
 .presets .p-main { border-color: var(--trend); color: var(--trend); }
+/* いま適用中のプリセットを塗りで示す */
+.presets button.is-active {
+  background: var(--trend); color: #06130d; border-color: var(--trend);
+}
 
 .legend {
   font-size: .72rem; color: var(--muted); line-height: 1.6;
