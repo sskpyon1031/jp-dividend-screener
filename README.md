@@ -35,7 +35,7 @@
 ## 仕組み
 
 ```
-JPX 上場銘柄一覧(data_j.xls)
+JPX 上場銘柄一覧(data_j.xlsx)
         │  scripts/fetch.py が母集団を生成(TOPIX500 など)
         ▼
 yfinance で 株価 / 時価総額 / 予想配当利回り / 実績EPS を取得
@@ -159,6 +159,13 @@ python -m http.server -d docs 8000      # http://localhost:8000 を開く
 
 ## うまく動かないとき
 
+- **`fetch.py` が `data_j.xls(x)` の取得で 404 になる**
+  JPX は「東証上場銘柄一覧」のファイル名・URL を予告なく変更することがあります
+  (2026-09 に `.xls` → `.xlsx` へ変更された例あり)。
+  https://www.jpx.co.jp/markets/statistics-equities/misc/01.html の
+  「東証上場銘柄一覧」リンク先を確認し、`scripts/fetch.py` の `JPX_XLS_URL` を
+  更新してください。ファイル形式が変わった場合は `requirements.txt` の
+  `openpyxl`(.xlsx用)/ `xlrd`(.xls用)も対応する方に合わせます。
 - **`fetch.py` が「取得成功 … が下限未満」で失敗する(exit 1)**
   Yahoo Finance が GitHub Actions の IP を一時的にブロックしている可能性があります。
   この場合 `latest.json` は**上書きされず前日のデータが残ります**。時間を置いて

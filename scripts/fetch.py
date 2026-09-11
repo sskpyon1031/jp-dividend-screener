@@ -3,7 +3,7 @@
 """日本株「高配当 × 大型株」スクリーナー — データ取得バッチ
 
 処理の流れ:
-  1. JPX公表の「東証上場銘柄一覧 (data_j.xls)」から母集団を作る
+  1. JPX公表の「東証上場銘柄一覧 (data_j.xlsx)」から母集団を作る
   2. yfinance で各銘柄の株価・時価総額・予想配当利回り・実績EPS・ROEを取得
   3. config.json の条件(利回り下限・時価総額下限)で絞り込む
   4. 該当銘柄の日足からテクニカル(移動平均・GC・RSI・52週レンジ・押し目)を算出。
@@ -33,9 +33,12 @@ HIST_DIR = DATA_DIR / "history"
 CACHE_DIR = ROOT / "_cache"
 
 # JPX「その他統計資料」— 東証上場銘柄一覧
+# 2026-09 に JPX 側がファイル形式を .xls → .xlsx に変更(URLパスは同じ)。
+# 万一また変わったら、https://www.jpx.co.jp/markets/statistics-equities/misc/01.html
+# の「東証上場銘柄一覧」リンク先を確認して更新する。
 JPX_XLS_URL = (
     "https://www.jpx.co.jp/markets/statistics-equities/misc/"
-    "tvdivq0000001vg2-att/data_j.xls"
+    "tvdivq0000001vg2-att/data_j.xlsx"
 )
 TOPIX500_SCALES = {"TOPIX Core30", "TOPIX Large70", "TOPIX Mid400"}
 UA = {"User-Agent": "Mozilla/5.0 (compatible; jp-dividend-screener/1.0)"}
@@ -70,7 +73,7 @@ def num(x):
 def load_universe() -> pd.DataFrame:
     """JPXの上場銘柄一覧を取得し、config.json の universe 設定で母集団を絞る。"""
     CACHE_DIR.mkdir(exist_ok=True)
-    xls = CACHE_DIR / "data_j.xls"
+    xls = CACHE_DIR / "data_j.xlsx"  # 拡張子は pandas のエンジン自動選択(openpyxl)に使う
     fresh = xls.exists() and (time.time() - xls.stat().st_mtime < 86400)
     if not fresh:
         try:
